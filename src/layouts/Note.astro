@@ -1,0 +1,16 @@
+---
+import { formatList } from "astro/dist/runtime/server/render/util";
+import Layout from "./Layout.astro";
+
+export interface Props {
+	frontmatter: any;
+}
+
+const { frontmatter } = Astro.props;
+---
+
+<Layout title={frontmatter.title}>
+	<article class="prose lg:prose-xl font-serif text-lg mx-auto max-w-3xl p-8">
+		<slot />
+	</article>
+</Layout>
