@@ -1,11 +1,15 @@
+const defaultTheme = require('tailwindcss/defaultTheme');
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
 	content: ['./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'],
 	theme: {
-		fontFamily: {
-			'serif': ['STIX Two Text', 'ui-serif', 'Georgia'],
+		extend: {
+			fontFamily: {
+				'serif': ['Source Serif Pro', ...defaultTheme.fontFamily.serif],
+				'sans': ['Source Sans Pro', ...defaultTheme.fontFamily.sans]
+			},
 		},
-		extend: {},
 	},
 	plugins: [
 		require('@tailwindcss/typography')

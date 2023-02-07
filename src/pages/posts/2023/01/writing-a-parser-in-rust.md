@@ -19,6 +19,9 @@ compiler. Most articles or books omit the topic, because it is
 
 While it might be tedious, it is certainly not trivial for me. So I
 decided to clarify my thoughts on it, by writing about it.
+
+*Disclaimer:* I am not a compiler developer so I might misrepresent
+something or get something wrong.
  
 
 ## What do we want to parse?
@@ -58,14 +61,40 @@ An AST representation in JSON might look something like this:
 
 ## Lexing
 
+Lexing is the process of taking a series of characters and chunking
+them into a sequence of tokens, discarding irrelevant characters. 
+
 ```rust
+type Line = usize;
+type Col  = usize;
+
+struct Position {
+    line: Line,
+    col: Col,
+}
+
+struct Region {
+    start: Position,
+    end: Position,
+}
+```
+
+
+```rust
+type Line = usize;
+type Col  = usize;
+
 struct Lexer<T = Iterator<Item = char>> {
     input: T,
     pos: u32,
     line: Line,
     col: Col,
+    start_line: Line,
+    start_col: Col,
 }
 ```
+
+
 
 
 
