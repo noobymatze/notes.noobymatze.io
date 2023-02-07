@@ -1,7 +1,22 @@
 ---
 import Layout from "../layouts/Layout.astro";
+
+const posts = await Astro.glob("../pages/posts/**/*.md");
 ---
 
-<Layout title="Notes of Matthias" />
+<Layout title="Notes of Matthias">
+  <div class="mx-auto pt-12 prose prose:lg font-serif">
+    {
+      posts.slice(0, 3).map((post) => (
+        <article class="pt-12">
+          <h1>{post.frontmatter.title}</h1>
+          <a class="text-lg" href={post.url}>
+            Read more
+          </a>
+        </article>
+      ))
+    }
+  </div>
+</Layout>
 
 <style></style>
