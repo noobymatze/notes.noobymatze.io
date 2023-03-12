@@ -1,6 +1,7 @@
 ---
 layout: ../../../../layouts/Note.astro
 title: What is different about software developers?
+draft: true
 ---
 
 # What is different about software developers?
