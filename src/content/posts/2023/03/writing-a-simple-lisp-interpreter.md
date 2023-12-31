@@ -134,12 +134,10 @@ Then we need a few helpers to categorize characters.
         default: 
             if (isDigit(c))
                 number();
-            else if (isSymbolInitialChar(c)) {
+            else if (isSymbolInitialChar(c))
                 symbol();
-            }
-            else {
+            else
                 console.log(`Unknown character at ${pos}: `, c);
-            }
         }
     }
 }
@@ -185,9 +183,10 @@ function parse(tokens: Token[]): Expr[] {
         const token = advance();
         switch (token.type) {
         case 'number': return token;
-        case 'string: return token;
-        case 'symbol: return token;
-        case ')': throw 'Ups, found unbalanced paranthesis.'.
+        case 'string': return token;
+        case 'symbol': return token;
+        case ')': 
+            throw 'Ups, found unbalanced paranthesis.'
         case '(':
             let expressions: Expr[] = [];
             while (!isAtEnd() && peek().type != ')') {
