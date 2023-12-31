@@ -1,5 +1,5 @@
 ---
-title: Switching to macOS from Linux
+title: Switching from Linux to macOS
 summary: |
   Things to know when switching from linux to macOS.
 tags: []
