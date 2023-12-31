@@ -1,6 +1,9 @@
 ---
-layout: ../../../../layouts/Note.astro
 title: Writing a simple LISP interpreter
+summary: Trying a small post
+tags: []
+date: 2023-03-24
+author: Matthias
 draft: true
 ---
 

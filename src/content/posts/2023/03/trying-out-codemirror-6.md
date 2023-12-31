@@ -1,9 +1,10 @@
 ---
-layout: ../../../../layouts/Note.astro
-title: Working with Codemirror 6
+title: Trying out Codemirror 6
+summary: This post just contains some setup code for Codemirror 6.
+tags: []
+date: 2023-03-01
+author: Matthias
 ---
-
-## Trying out Codemirror 6
 
 I have been using Codemirror 6 multiple times and I always forget the
 basic setup and have to look it up somewhere, so here is something to

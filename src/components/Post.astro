@@ -1,0 +1,25 @@
+---
+import type {CollectionEntry} from "astro:content";
+
+export interface Props {
+    post: CollectionEntry<'post'>;
+}
+
+const { post } = Astro.props;
+const postDate = new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+}).format(post.data.date);
+---
+
+<article>
+    <h2>
+        <a href={`posts/${post.slug}`} class="block no-underline font-bold">{post.data.title}</a>
+        <div class="mt-1 text-gray-400 text-base">{postDate}</div>
+    </h2>
+    <div class="text-xl mt-3 mb-1">{post.data.summary}</div>
+    <a class="text-xl" href={`posts/${post.slug}`}>
+        Read post
+    </a>
+</article>

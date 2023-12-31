@@ -1,22 +1,28 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import {getCollection} from "astro:content";
+import Post from "../components/Post.astro";
+import Header from "../components/Header.astro";
 
-const posts = await Astro.glob("../pages/posts/**/*.md");
+const posts = await getCollection('posts', (post) =>
+    import.meta.env.PROD ? !post.data.draft : true
+);
+posts.sort((a, b) => b.data.date - a.data.date)
 ---
 
 <Layout title="Notes of Matthias">
-  <div class="mx-auto pt-12 prose prose:lg font-serif">
-    {
-      posts.slice(0, 3).map((post) => (
-        <article class="pt-12">
-          <h1>{post.frontmatter.title}</h1>
-          <a class="text-lg" href={post.url}>
-            Read more
-          </a>
-        </article>
-      ))
-    }
+  <Header post={false} />
+  <div class="mx-auto pt-8 max-w-3xl prose-xl p-4 font-sans border-b pb-12">
+    <h1 class="font-bold">Hey!</h1>
+    <p class="text-2xl">
+      My name is Matthias, welcome to my notes. I am
+      a software developer based in northern Germany
+      and try to write mainly about software development
+      on here.
+    </p>
+  </div>
+  <div class="mx-auto max-w-3xl prose p-4 font-sans">
+    {posts.map((post) => <Post post={post} />)}
   </div>
 </Layout>
 
-<style></style>

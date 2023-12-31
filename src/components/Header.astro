@@ -1,0 +1,26 @@
+---
+import Me from "./Me.astro";
+import HomeIcon from "./HomeIcon.astro";
+
+export interface Props {
+    title?: string
+}
+
+const { title } = Astro.props;
+---
+
+<header class="p-4 md:p-8 sticky top-0 bg-white">
+    <div class="flex">
+        <div class="flex-1 flex place-self-center">
+            <a href="/" class="block text-gray-500 hover:text-black transition-colors duration-300">
+                <HomeIcon />
+            </a>
+        </div>
+        <div>
+            <h2>{title}</h2>
+        </div>
+        <div class="align-end">
+            <Me />
+        </div>
+    </div>
+</header>
