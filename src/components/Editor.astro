@@ -26,14 +26,20 @@
     <article id="markdown" class="prose-xl pt-8 prose-code:text-md prose-pre:bg-white prose-pre:text-black font-sans mb-20">
     </article>
 </div>
+<style is:global>
+    .cm-editor {
+        height: 100%;
+    }
+</style>
 
 <script>
     import {basicSetup} from "codemirror";
-    import {EditorView, keymap, showPanel} from "@codemirror/view";
+    import {drawSelection, EditorView, keymap, showPanel} from "@codemirror/view";
     import {markdown} from "@codemirror/lang-markdown";
     import {Vim, vim} from "@replit/codemirror-vim";
     import type {Extension} from "@codemirror/state";
     import {marked} from "marked";
+    import {defaultKeymap} from "@codemirror/commands";
 
     const LOCAL_STORAGE_KEY = 'NOTES_LOCAL';
 
@@ -61,7 +67,9 @@
         const notes = window.localStorage.getItem(LOCAL_STORAGE_KEY);
 
         const defaultExtensions: Extension[] = [
+            EditorView.lineWrapping,
             basicSetup,
+            drawSelection(),
             markdown(),
             EditorView.updateListener.of(update => {
                 window.localStorage.setItem(LOCAL_STORAGE_KEY, update.state.doc.toString())
