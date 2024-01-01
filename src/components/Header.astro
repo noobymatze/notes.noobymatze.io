@@ -10,7 +10,7 @@ export interface Props {
 const { title, sticky } = Astro.props;
 ---
 
-<header class={`p-4 md:p-8 bg-white z-50 ${sticky === undefined || sticky ? 'sticky top-0' : '' }`}>
+<header class={`dark:bg-[#282c34] dark:text-gray-50 p-4 md:p-8 bg-white z-50 ${sticky === undefined || sticky ? 'sticky top-0' : '' }`}>
     <div class="flex">
         <div class="flex place-self-center">
             <a href="/" class="block text-gray-500 hover:text-black transition-colors duration-300">

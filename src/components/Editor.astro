@@ -55,6 +55,7 @@
     import type {Extension} from "@codemirror/state";
     import {marked} from "marked";
     import {defaultKeymap} from "@codemirror/commands";
+    import {oneDark} from "@codemirror/theme-one-dark";
 
     const LOCAL_STORAGE_KEY = 'NOTES_LOCAL';
 
@@ -138,6 +139,10 @@
         // OTHERS
         const notes = window.localStorage.getItem(LOCAL_STORAGE_KEY);
 
+        const now = new Date();
+        const hours = now.getHours();
+        const darkMode = hours >= 17 || hours <= 5;
+
         const defaultExtensions: Extension[] = [
             EditorView.lineWrapping,
             basicSetup,
@@ -147,6 +152,12 @@
                 window.localStorage.setItem(LOCAL_STORAGE_KEY, update.state.doc.toString())
             })
         ];
+
+        if (darkMode) {
+            defaultExtensions.push(oneDark)
+            document.documentElement.classList.add('dark')
+        }
+
         const view = new EditorView({
             doc: notes || '# Hello World!',
             parent: editor,
