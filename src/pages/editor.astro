@@ -1,0 +1,13 @@
+---
+import Editor from "../components/Editor.astro";
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+
+---
+
+<Layout title="Editor for thoughts">
+    <Header />
+    <div class="h-full mx-auto pt-8 max-w-3xl prose p-4 font-sans pb-12">
+        <Editor />
+    </div>
+</Layout>
