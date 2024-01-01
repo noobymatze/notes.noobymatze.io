@@ -3,21 +3,22 @@ import Me from "./Me.astro";
 import HomeIcon from "./HomeIcon.astro";
 
 export interface Props {
-    title?: string
+    title?: string,
+    sticky?: boolean,
 }
 
-const { title } = Astro.props;
+const { title, sticky } = Astro.props;
 ---
 
-<header class="p-4 md:p-8 sticky top-0 bg-white">
+<header class={`p-4 md:p-8 bg-white z-50 ${sticky === undefined || sticky ? 'sticky top-0' : '' }`}>
     <div class="flex">
-        <div class="flex-1 flex place-self-center">
+        <div class="flex place-self-center">
             <a href="/" class="block text-gray-500 hover:text-black transition-colors duration-300">
                 <HomeIcon />
             </a>
         </div>
-        <div>
-            <h2>{title}</h2>
+        <div class="flex-1 max-w-3xl mx-auto place-self-center pl-7">
+            <h2 class="font-bold text-4xl">{title}</h2>
         </div>
         <div class="align-end">
             <Me />
