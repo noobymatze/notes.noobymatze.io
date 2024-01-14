@@ -67,11 +67,12 @@ You can install NVM with `fisher install jorgebucaran/nvm.fish` and then just us
 
 ### Docker
 
-It is necessary to install Docker Desktop to work without hassle with docker containers.
+It is necessary to install [Docker Desktop](https://www.docker.com/products/docker-desktop/) to work without hassle with
+docker containers.
 
-You should be able to use podman instead of docker and even be able to essentially make an alias for docker. However, personally, I had a problem, where a container started by podman two weeks ago, could not be started and I still don’t really have any idea why.
-
-So, I am a little cautious.
+Theoretically, you should be able to use [podman](https://podman.io/) instead of docker. However, personally, I had a
+problem, where a container started by podman two weeks earlier, could not be started, which meant I lost my database
+setup for a project and had to reconstruct it again. So, I am a little cautious.
 
 ### No space left on device
 
