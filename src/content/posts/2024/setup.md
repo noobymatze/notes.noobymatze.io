@@ -6,7 +6,6 @@ summary: |
 tags: []
 date: 2024-01-12
 author: Matthias
-draft: true
 ---
 
 My goal for 2024 is to implement a simple programming language that
