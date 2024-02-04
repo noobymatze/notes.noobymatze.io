@@ -10,7 +10,7 @@
     "post": "mkdir -p /src/content/posts/$(date +%Y/%m)",
     "preview": "astro preview",
     "astro": "astro",
-    "deploy": "npm run build && npm run clean-remote && scp -r dist/* rambo:/var/www/notes.noobymatze.io/",
+    "deploy": "npm run build && scp -r dist/* rambo:/var/www/notes.noobymatze.io/",
     "clean-remote": "ssh rambo 'rm -rf /var/www/notes.noobymatze.io/*'"
   },
   "dependencies": {
