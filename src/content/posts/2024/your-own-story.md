@@ -53,6 +53,5 @@ As a software developer, when I think about this problem, it is a
 ## Notes
 
 - Cleaning up macbook, how to? 
-- Lambda9 Logo, grundsätzlich auseinander gebrochen und erst beim ersten Hover über das SVG ziehen sich die kleinen Teile zusammen und animieren sich, um zu einem lambda zu werden.
 
 - "You have a value without being valuable."

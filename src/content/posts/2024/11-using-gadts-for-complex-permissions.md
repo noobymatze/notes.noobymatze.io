@@ -27,6 +27,9 @@ To make this more concrete, imagine a car manufacturer, with cars and their
 parts at specific locations. An employee with permissions for location A should
 not be able to interact with data from location B.
 
+If you just want to see the corresponding code, take a look
+[here](https://gist.github.com/noobymatze/22e0e8459708487aecf359b91008d0a9).
+
 ## Example
 
 To illustrate this in action, let's look at an example. Suppose the two
@@ -89,8 +92,10 @@ To check a permission at the database level, we can use a function called
 us to retrieve only data, that the user has permission for.
 
 ```kotlin
-dsl.selectFrom(CAR_PART)
-    .where(permissions.check(viewCarPart, carPart.field or car.field))
+dsl.select(CAR_PART.asterisk())
+    .from(CAR_PART)
+    .join(CAR).on(CAR.ID.eq(CAR_PART.CAR_ID))
+    .where(permissions.check(viewCarPart, CAR_PART.loc or CAR.loc))
     .fetch()
 ```
 
@@ -165,8 +170,8 @@ fun <A> AssignedPermissions.has(
 
 This way, whatever the type of `A` in a `Permission` is, it needs to be the
 second argument to the function. However, it cannot be just a generic type `A`,
-because we also want to allow multiple distinct types as arguments (think about
-the `or`) case, when viewing a car part. This is were the following type comes
+because we also want to allow multiple distinct types as arguments, think about
+the `or` case, when viewing a car part. This is were the following type comes
 in.
 
 ```kotlin
@@ -218,7 +223,7 @@ sealed interface LocationSource<A: Ref<A>> {
 }
 ```
 
-With these two types, we can refine the `Permission` type.
+Using these two types, we can now refine the `Permission` type.
 
 ```kotlin
 data class Permission<T: Ref<T>>(
@@ -284,7 +289,8 @@ these casts will not blow up.
 But the interesting thing is, that our function signature is type-safe by
 construction but the implementation uses unsafe mechanisms to implement it.
 
-With a few convenience properties, the initial example should work now.
+With a few convenience properties, the initial example should work now and also
+explain the weird `.ref` property from the beginning.
 
 ```kotlin
 val Car.ref get() = Ref.Car(this)
@@ -299,8 +305,8 @@ val buttonVisible = permissions.has(viewCar, car.ref)
 
 To implement a check in the database, we essentially implement the `Ref<A>`
 again with other properties. I haven't found a way in Kotlin to make `Ref<A>`
-so generic, that we would only need to implement it once.
-
+so generic, that we would only need to implement it once. Therefore, we need a
+second type.
 
 ```kotlin
 sealed interface RefCondition<A: Ref<A>> {
@@ -335,7 +341,6 @@ fun <R: Ref<R>> AssignedPermissions.check(
             RefCondition.None -> DSL.trueCondition()
             is RefCondition.Car -> ref.locField.`in`(locationsWithPermission)
             is RefCondition.CarPart -> ref.locField.`in`(locationsWithPermission)
-            is RefCondition.Employee -> ref.locField.`in`(locationsWithPermission)
             is RefCondition.Or<*, *> -> DSL.or(
                 @Suppress("UNCHECKED_CAST")
                 whereHelp(ref.a as RefCondition<R>, locationsWithPermission),
@@ -355,11 +360,20 @@ We fetch all locations for the given permission and evaluate the
 `RefCondition<A>`, the same way we did for `has`, but this time building a
 JOOQ-Condition instead of a boolean.
 
-And finally, we are able to build a query with the condition.
+And finally, we are able to build a query with the condition using a few helper
+properties.
 
 ```kotlin
-dsl.selectFrom(CAR_PART)
-    .where(permissions.check(viewCarPart, carPart.field or car.field))
+val Table<CarRecord>.loc get(): RefCondition<Car> = 
+    RefCondition.Car(CAR.LOCATION)
+
+val Table<CarPartRecord>.loc get(): RefCondition<CarPart> = 
+    RefCondition.CarPart(CAR_PART.LOCATION)
+
+dsl.select(CAR_PART.asterisk())
+    .from(CAR_PART)
+    .join(CAR).on(CAR.ID.eq(CAR_PART.CAR_ID))
+    .where(permissions.check(viewCarPart, CAR_PART.loc or CAR.loc))
     .fetch()
 ```
 
