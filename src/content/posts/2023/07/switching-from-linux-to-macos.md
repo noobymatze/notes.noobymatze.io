@@ -17,7 +17,7 @@ configure, learn or re-learn in the hope it helps others.
 This section contains shortcuts and navigational things, I had to find on the internet, because it wasn’t clear to me, how to do them.
 
 - Switching to the **home directory** in finder: `Cmd+Shift+H`
-- Show **hidden files**: `Cmd+Shift+`.
+- Show **hidden files**: `Cmd+Shift+.`
 
 ## Software
 
@@ -57,6 +57,8 @@ alias java17="set --export --global JAVA_HOME (/usr/libexec/java_home -v 17)"
 alias java21="set --export --global JAVA_HOME (/usr/libexec/java_home -v 21)"
 ```
 
+The flag `-s` saves the java home variable, if you want it to persist.
+
 ### Maven
 
 Maven can be easily installed via `brew install maven`. It also does have a pretty recent version, which is pretty nice in comparison to the typical linux package manager.
@@ -86,3 +88,7 @@ If you love the windows behavior of alt tab, you should install [AltTab](https:/
 ```bash
 brew install --cask alt-tab
 ```
+
+## Window Management
+
+https://rectangleapp.com/

@@ -10,10 +10,9 @@ author: Matthias
 
 ### Simple made easy
 
-If you watch only one talk from this list, it should be this
-one. There are so many wise truths to software development, that have
-been holding up the past 12 years. Rich Hickey (author of Clojure)
-takes us through
+If you watch only one talk from this list, it should be this one. There are so
+many wise truths to software development, that have been holding up the past 12
+years.
 
 [https://www.youtube.com/watch?v=SxdOUGdseq4](https://www.youtube.com/watch?v=SxdOUGdseq4)
 
@@ -25,6 +24,10 @@ educational way. Also, it is a master class in giving a talk, that
 keeps you at the edge of your seat.
 
 [https://www.youtube.com/watch?v=r-A78RgMhZU](https://www.youtube.com/watch?v=r-A78RgMhZU)
+
+### Performance matters
+
+https://www.youtube.com/watch?v=r-TLSBdHe1A
 
 ### The life of a file
 
