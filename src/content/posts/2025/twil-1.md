@@ -89,8 +89,8 @@ issues with it:
    the same properties. If you introduce just one error, that deviates
    from this norm, this pattern breaks down, and you'll start adding
    workarounds. Either by adding nullable properties on `Params`, a
-   special view for the outlier error, or - worse - using inheritance
-   and performing instance checks.
+   special view for the outlier error, or - worse - by using
+   inheritance and performing instance checks.
 2. You tie the rendering of the error to its definition. This is
    subtle, but imagine having two technically different errors that
    looked the same to the end user. How would you differentiate them
