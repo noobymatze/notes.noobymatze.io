@@ -40,6 +40,14 @@ const { title } = Astro.props;
 		font-size: 0.8em !important;
 	}
 
+        .prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::after {
+               content: "" !important;
+	}
+
+        .prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::before {
+               content: "" !important;
+	}
+
 	code > .line:last-child {
 		display: none;
 	}
@@ -60,4 +68,5 @@ const { title } = Astro.props;
 			color: rgba(115,138,148,.4)
 		}
 	}
+
 </style>
