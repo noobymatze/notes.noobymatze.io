@@ -144,9 +144,10 @@ The advantages of this approach are:
    cognitive load and accidental complexity.
 4. Since the errors are defined declaratively, their interpretation
    (log to file, send to server, show to user, blow up) can be decided
-   at the call site. *Don't do, describe instead*. This principle is
-   powerful and ties back to [value][value] of using descriptive data
-   structures, instead of immediately executing what you want to do.
+   at the call site. This principle is powerful and ties back to
+   [value][value] of using descriptive data structures, instead of
+   immediately executing what you want to do. But beware, you can also
+   overdo it.
    
 Aside: I am very excited for the [Roc][roc] programming language because I
 think its error handling will be even better than this, as you won't
