@@ -1,6 +1,6 @@
 ---
 title: "This week I learned 2"
-summary: "Typst, atomic design, Wireguard and "
+summary: "Typst, atomic design, wireguard and server migration"
 date: 2025-02-08
 author: Matthias Metzger
 draft: false
