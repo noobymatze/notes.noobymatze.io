@@ -15,7 +15,8 @@ course I remember all the time spent setting up formatting, working
 through macros, and sometimes being puzzled by its arcane
 syntax. However, once everything was set up, you could just focus on
 writing. No twiddling at the end of your paper. If your writing was
-done, so was your paper.
+done, so was your paper. That was good. However, it seems, that LaTeX
+finally has a real contender.
 
 [Typst][typst] promises to be a modern replacement for LaTeX,
 featuring a composable language, clear error messages, speedy compile
@@ -62,8 +63,8 @@ are my reasons:
   icon might already be an atom as well. This means you would need to
   promote the button to a molecule, which requires needlessly moving
   files around in the folder tree and communicating these changes to
-  team members. On the other hand, in one team a button with an icon
-  might still be considered an atom, while in another it would be a
+  team members. Additionally, in one team a button with an icon might
+  still be considered an atom, while in another it would be a
   molecule. I know this example is contrived, but the point still
   stands.
 - **Review**: Because the boundaries of these concepts are somewhat
@@ -72,15 +73,14 @@ are my reasons:
   where something should be placed.
 - **Finding Stuff**: In the best case, I can simply do a symbol search
   for "button" in my editor and find it immediately. In that case, I
-  really don’t care which directory a component is in, nor do I
-  appreciate the fact that everything is neatly organized. I just want
-  to work with a button. If I can’t do that, I have to think about
-  where a component might be based on its appearance. Identifying a
-  button is straightforward, but inferring whether something is a
-  molecule or an organism is much harder — especially if you've been
-  away from the project for a while. This kind of search has a
-  Sherlock-esque vibe, which is fun at first, but eventually becomes
-  really annoying.
+  really don’t care which directory a component is in, nor do I think
+  about the neat organization. I just want to work with a button. If I
+  can’t do that, I have to think about where a component might be,
+  based on its appearance. Identifying a button is straightforward,
+  but inferring whether something is a molecule or an organism is much
+  harder — especially if you've been away from the project for a
+  while. This kind of search has a Sherlock-esque vibe, which is fun
+  at first, but eventually becomes really annoying.
 
 So, personally as a developer, I don't see any benefits that outweigh
 the increased costs in education, communication, and maintenance
@@ -113,10 +113,12 @@ folder), for example
 - `/etc/ssl/`
 - `/etc/sudoers`
 
-then tar whatever files you need and whereevery your applications are.
+then tar whatever files you need and where every your applications
+are.
 
 ```sh
-$ tar --exclude='<pattern>' -zcvf home.tar.gz .
+tar --exclude='<pattern>' -zcvf home.tar.gz .
+
 ```
 
 Make a full backup from your databases of choice, then just copy
@@ -134,8 +136,9 @@ container.
 docker compose exec -T db bash -c "dropdb --host localhost --username my-user db"
 docker compose exec -T db bash -c "createdb --host localhost --username my-user db"
 docker compose exec -T db bash -c "\
-  PGPASSWORD='<remote-password>' pg_dump -C -h host.docker.internal -p 5433 -U my-remote-user db | \
-  PGPASSWORD='sql' psql -U my-user -d db"
+    PGPASSWORD='<remote-password>' pg_dump -C -h host.docker.internal -p 5433 -U my-remote-user db | \
+    PGPASSWORD='sql' psql -U my-user -d db"
+
 ```
 
 
