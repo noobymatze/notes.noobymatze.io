@@ -7,7 +7,7 @@ draft: false
 tags: []
 ---
 
-# Addiction
+## Addiction
 
 Addiction? Yeah, I know - not what you'd expect on a technical blog.
 Though, anecdotally, if you look around, there are some high caliber
@@ -52,8 +52,7 @@ building or supporting addicts is probably a bad idea.
 
 What are those facts for you?
 
-
-# Roc goes Zig
+## Roc goes Zig
 
 The Roc language will switch from Rust to Zig as its [implementation
 language][roc-to-zig]. There was also a [Zig Showtime][showtime] about
@@ -78,7 +77,7 @@ prompt engineering and all the other shenaningans, however, if that
 works in at least 80% of the cases, it could be quite powerful.
 
 
-# Locale issues
+## Locale issues
 
 I have been using `sed` in a script for some time now to auto generate
 branch names, based on issue titles. However a co-worker mentioned,
