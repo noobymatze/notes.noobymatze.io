@@ -4,13 +4,13 @@ import sanitizeHtml from 'sanitize-html';
 import MarkdownIt from 'markdown-it';
 const parser = new MarkdownIt('commonmark', {});
 
-export async function GET(context) {
+export async function GET(context: any) {
     const posts = await getCollection('posts');
     return rss({
         // `<title>` field in output xml
         title: "Matthias' notes",
         // `<description>` field in output xml
-        description: 'A humble Astronaut’s guide to the stars',
+        description: 'Dreams from a noob',
         // Pull in your project "site" from the endpoint context
         // https://docs.astro.build/en/reference/api-reference/#contextsite
         site: context.site,
