@@ -10,7 +10,7 @@ export interface Props {
 const { title, sticky } = Astro.props;
 ---
 
-<header class={`dark:bg-[#282c34] dark:text-gray-50 p-4 md:p-8 bg-white z-50 ${sticky === undefined || sticky ? 'sticky top-0' : '' }`}>
+<header class={`dark:bg-[#282c34] dark:text-gray-50 p-4 md:p-6 bg-white z-50 w-full fixed ${sticky === undefined || sticky ? 'sticky top-0' : '' }`}>
     <div class="flex">
         <div class="flex place-self-center">
             <a href="/" class="block text-gray-500 hover:text-black transition-colors duration-300">
@@ -18,10 +18,39 @@ const { title, sticky } = Astro.props;
             </a>
         </div>
         <div class="flex-1 max-w-3xl mx-auto place-self-center pl-7">
-            <h2 class="font-bold text-4xl">{title}</h2>
+            <h2 id="sticky-header-title" class="font-bold text-4xl"></h2>
         </div>
         <div class="align-end">
             <Me />
         </div>
     </div>
 </header>
+
+<script is:inline>
+    function setupTitleUpdate() {
+        const headerTitleEl = document.querySelector('#sticky-header-title');
+        const headings = document.querySelectorAll('#post h2');
+        const offset = 90;
+
+        function updateHeaderTitle() {
+            let currentTitle = '';
+            headings.forEach(heading => {
+                const rect = heading.getBoundingClientRect();
+                // If the heading's top is above the offset (i.e. scrolled past), update currentTitle.
+                if (rect.top < offset) {
+                    if (heading.classList.contains('article-title')) {
+                        currentTitle = heading.querySelector('div')?.textContent;
+                    } else {
+                        currentTitle = heading.textContent;
+                    }
+                }
+            });
+
+            headerTitleEl.textContent = currentTitle;
+        }
+
+        window.addEventListener('scroll', updateHeaderTitle)
+    }
+
+    document.addEventListener('astro:page-load', setupTitleUpdate)
+</script>
