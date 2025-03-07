@@ -121,7 +121,7 @@ somewhere, that will block your whole event loop or a worker thread.
 This is much more lose, than the other points, but there are two
 things, that I find invaluable.
 
-One is, to always think about side-effects (any IO, e.g. database,
+One is to always think about side-effects (any IO, e.g. database,
 network or file access). Consider the following function.
 
 ```python
@@ -164,10 +164,14 @@ def foo(x: int):
 
 This might all work, but it will blow up at some point, because at
 that point `z > 0` might not imply `x == 5` anymore. `y` should be
-used closely to where it is used.
+declared closely to where it is used.
 
 Notice, how I didn't call this "not beautiful" or "not clean" but
-instead focused on the technical downsides.
+instead focused on potential downsides.
+
+#### Architecture
+
+I think architecture 
 
 
 ## Question feature requests
