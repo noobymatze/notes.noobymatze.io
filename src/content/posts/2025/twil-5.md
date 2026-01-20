@@ -8,8 +8,7 @@ tags: []
 ---
 
 Okay, missed the deadline last weekend, the previous week was so full
-of lessons, I don't even know where to begin. However, if I write down
-everything, I will probably never finish this post.
+of lessons, I don't even know where to begin. Here are a couple.
 
 ## Thesis
 
@@ -56,12 +55,14 @@ lens of functions.
 
 ```javascript
 const myPaper = (worldKnowledge) => {
-    const [introKnowledge, motivation] = chapter1(worldKnowledge);
-    const basics = chapter2(introKnowledge, worldKnowledge);
-    const result = chapter3(introKnowledge, basics, worldKnowledge);
-    const conclusion = chapter4(introKnowledge, motiviation, result);
-    return worldKnowledge.assimilate(conclusion)
+    const [introKnowledge, motivation] = intro(worldKnowledge);
+    const basics1 = chapter1(introKnowledge, worldKnowledge);
+    const basics2 = chapter2(introKnowledge, worldKnowledge);
+    const result = chapter3(basics1, basics2, worldKnowledge);
+    const conclusion = conclusion(introKnowledge, motiviation, result);
+    return conclusion
 };
+
 ```
 
 We, as the authors take the knowledge of the world and write different

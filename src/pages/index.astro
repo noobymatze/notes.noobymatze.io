@@ -2,29 +2,137 @@
 import Layout from "../layouts/Layout.astro";
 import {getCollection} from "astro:content";
 import Post from "../components/Post.astro";
-import Header from "../components/Header.astro";
+import "@fontsource/pacifico";
 
 const posts = await getCollection('posts', (post) =>
     import.meta.env.PROD ? !post.data.draft : true
 );
-posts.sort((a, b) => b.data.date - a.data.date)
+posts.sort((a, b) => b.data.date - a.data.date);
+
+// Letter animation timing
+const line1 = "Hi there,";
+const line2 = "I am Matthias";
+const delay = (i: number) => `${0.3 + i * 0.08}s`;
+const totalTime = 0.3 + (line1.length + line2.length) * 0.08 + 0.5;
 ---
 
 <Layout title="Notes of Matthias">
-  <Header post={false} />
-  <div class="mx-auto pt-8 max-w-3xl prose-xl p-4 border-b pb-12">
-    <h1 class="font-bold">Hey!</h1>
-    <p class="text-2xl">
-      My name is Matthias, welcome to my notes. I am
-      a software developer based in northern Germany. On here,
-      I write down some thoughts, explorations and things I have learned.
-    </p>
-    <p class="text-2xl mt-2">
-      Have fun! 
-    </p>
-  </div>
-  <div class="mx-auto max-w-3xl prose p-4">
-    {posts.map((post) => <Post post={post} />)}
-  </div>
+  <section
+    id="hero"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center hero-bg"
+    aria-label="Hi there, I am Matthias"
+  >
+    <div class="flex flex-col md:flex-row items-center gap-8 md:gap-16 p-4">
+      <img
+        src="/me.jpg"
+        alt="Matthias"
+        class="w-32 h-32 md:w-40 md:h-40 rounded-full object-cover profile-glow"
+      />
+      <div class="text-4xl md:text-5xl text-center md:text-left" style="font-family: 'Pacifico', cursive; line-height: 1.3;" aria-hidden="true">
+        <div class="whitespace-nowrap">
+          {line1.split('').map((c, i) => <span class="letter" style={`animation-delay: ${delay(i)}`}>{c === ' ' ? '\u00A0' : c}</span>)}
+        </div>
+        <div class="whitespace-nowrap mt-1">
+          {line2.split('').map((c, i) => <span class="letter" style={`animation-delay: ${delay(line1.length + i)}`}>{c === ' ' ? '\u00A0' : c}</span>)}
+        </div>
+      </div>
+    </div>
+
+    <button
+      id="enter-btn"
+      class="absolute bottom-12 p-2 rounded-full text-white bg-transparent border-none cursor-pointer enter-btn hover:bg-white/10 focus:outline-2 focus:outline-white focus:outline-offset-4"
+      aria-label="Enter site"
+      style={`animation-delay: ${totalTime}s`}
+    >
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12l7 7 7-7"/>
+      </svg>
+    </button>
+  </section>
+
+  <main id="main-content" class="min-h-screen focus:outline-none" tabindex="-1">
+    <div class="mx-auto pt-8 max-w-3xl prose-xl p-4 border-b pb-12">
+      <h1 class="font-bold">Hey!</h1>
+      <p class="text-2xl">
+        My name is Matthias, welcome to my notes. I am
+        a software developer based in northern Germany. On here,
+        I write down some thoughts, explorations and things I have learned.
+      </p>
+      <p class="text-2xl mt-2">Have fun!</p>
+    </div>
+    <div class="mx-auto max-w-3xl prose p-4">
+      {posts.map((post) => <Post post={post} />)}
+    </div>
+  </main>
 </Layout>
 
+<script>
+  const hero = document.getElementById('hero');
+  const enterBtn = document.getElementById('enter-btn');
+  const mainContent = document.getElementById('main-content');
+
+  if (hero && enterBtn && mainContent) {
+    let revealed = false;
+
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      hero.classList.add('hero-exit');
+      hero.addEventListener('animationend', () => {
+        hero.style.display = 'none';
+        mainContent.focus();
+        cleanup();
+      }, { once: true });
+    };
+
+    const animationDone = parseFloat(enterBtn.style.animationDelay) * 1000 + 500;
+    let ready = false;
+    const timer = setTimeout(() => { ready = true; }, animationDone);
+
+    const onWheel = (e: WheelEvent) => { if (ready && e.deltaY > 0) reveal(); };
+    const onKey = (e: KeyboardEvent) => { if (ready && ['ArrowDown', 'PageDown', ' '].includes(e.key)) reveal(); };
+    let touchY = 0;
+    const onTouchStart = (e: TouchEvent) => { touchY = e.touches[0].clientY; };
+    const onTouchEnd = (e: TouchEvent) => { if (ready && touchY - e.changedTouches[0].clientY > 50) reveal(); };
+
+    enterBtn.addEventListener('click', reveal);
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }
+</script>
+
+<style>
+  .hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%); }
+  .profile-glow { box-shadow: 0 0 60px rgba(124, 58, 237, 0.3); }
+  .hero-exit { animation: slideUp 0.6s ease-in-out forwards; }
+  @keyframes slideUp { to { transform: translateY(-100%); } }
+
+  .letter {
+    display: inline-block;
+    color: white;
+    opacity: 0;
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .enter-btn {
+    opacity: 0;
+    animation: fadeIn 0.5s ease-out forwards, bounce 1.5s ease-in-out 0.5s infinite;
+  }
+  @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .letter, .enter-btn { animation: none; opacity: 1; }
+    .hero-exit { animation: none; display: none; }
+  }
+</style>

@@ -8,7 +8,6 @@ module.exports = {
 		extend: {
 			fontFamily: {
 				'serif': ['Source Serif Pro', ...defaultTheme.fontFamily.serif],
-				'sans': ['Source Sans Pro', ...defaultTheme.fontFamily.sans]
 			},
 		},
 	},
