@@ -1,50 +1,66 @@
 /**
  * Particle Life System
  *
- * This is an artificial life simulation where particles interact with each other
- * based on attraction/repulsion rules, creating emergent organic behaviors.
+ * An artificial life simulation where particles interact based on attraction/repulsion rules,
+ * creating emergent organic behaviors. The system cycles through introduction messages, then
+ * enters an infinite particle life mode with evolving behavior patterns.
  *
- * ## Core Concepts:
+ * ## Animation Flow:
  *
- * 1. **Particle Life Physics**
- *    - Each particle has a "type" (color - 12 vibrant colors)
- *    - Different types attract or repel each other based on an attraction matrix
- *    - Example: Red particles might be attracted to blue, but repelled by green
- *    - This creates emergent behaviors: chasing, fleeing, clustering, orbiting, planets
- *    - Matrix is regenerated each cycle for variety
+ * 1. **Introduction Sequence** (one-time, ~90s total):
+ *    - HOLDING (3s): Show first message "Hi there, I am Matthias"
+ *    - DISSOLVING (2s) → PARTICLE_LIFE (10s) → FORMING (3s)
+ *    - HOLDING (8s): Show "a software developer"
+ *    - ... repeats for all 7 introduction messages ...
  *
- * 2. **Cyclical Animation Modes**
- *    - EXPLOSION (2s): Particles burst outward from center
- *    - PARTICLE_LIFE (15s): Full particle life physics with organic interactions
- *    - FORMING (3s): Smooth transition as particles move to form text
- *    - HOLDING (15s): Particles hold text formation
- *    - DISSOLVING (2s): Particles explode outward from text positions
- *    - Cycle repeats with different messages: "Welcome", "Awesome right?", "Have fun!"
+ * 2. **Infinite Particle Life** (after all messages shown):
+ *    - PARTICLE_LIFE mode runs forever (15s cycles)
+ *    - New attraction matrix generated every 15s for variety
+ *    - Creates endless evolving organic patterns
  *
- * 3. **Text Formation System**
- *    - Uses canvas text rendering to generate target positions
- *    - Renders text using Pacifico font (matching hero section)
- *    - Each particle assigned a random speed (0.5x-1.5x) for organic arrival
- *    - Particles smoothly transition from chaos to formation via blended forces
+ * ## Particle Life Physics:
  *
- * 4. **Performance Optimizations**
- *    - Spatial Partitioning: Canvas divided into grid cells (80×80px)
- *    - Each particle only checks neighbors in nearby cells (3×3 grid)
- *    - Reduces checks from O(n²) to ~O(n), ~10x performance improvement
- *    - Much better battery efficiency
+ * - Each particle has a "type" (0-11) corresponding to a vibrant color
+ * - An attraction matrix defines how each type feels about every other type
+ *   - Positive values = attraction, negative = repulsion
+ *   - Example: Red particles might chase blue but flee from green
+ * - Matrix presets: planets, snakes, chaos, balanced, spirals, clusters
+ * - Creates emergent behaviors: chasing, fleeing, orbiting, clustering
  *
- * ## Physics Formula:
+ * ## Text Formation System:
  *
- * For each particle, we calculate:
- *   1. Build spatial grid to organize particles by position
- *   2. Get nearby particles from surrounding cells (not all particles)
- *   3. For each nearby particle: calculate distance d = √(dx² + dy²)
- *   4. Look up attraction coefficient from matrix based on particle types
- *   5. Apply force: F = attraction × (1 - d/range) × strength
+ * - Renders text to offscreen canvas at 2x resolution for crisp sampling
+ * - Font size scales responsively (32-80px) based on viewport
+ * - Samples pixel positions with adaptive density (2-3px based on font size)
+ * - Each particle gets random formation speed (0.5x-1.5x) for organic arrival
+ * - Forces blend smoothly: particle life → formation → holding
+ *
+ * ## Mouse/Touch Interaction:
+ *
+ * - During PARTICLE_LIFE mode, mouse/touch creates repulsion bubble (120px radius)
+ * - Particles scatter away from cursor with quadratic falloff
+ * - Touch events allow scrolling during non-particle-life phases
+ *
+ * ## Performance Optimizations:
+ *
+ * - **Spatial Partitioning**: Canvas divided into 80×80px grid cells
+ * - Particles only check neighbors in 3×3 surrounding cells
+ * - Reduces force calculations from O(n²) to ~O(n)
+ * - ~10x performance improvement, better battery life
+ *
+ * ## Physics Update Loop:
+ *
+ * For each particle:
+ *   1. Build spatial grid organizing particles by position
+ *   2. Get nearby particles from surrounding cells
+ *   3. Calculate pairwise forces: F = attraction × (1 - d/range) × strength
+ *   4. Apply mouse repulsion force (if active)
+ *   5. Apply formation force (if forming/holding text)
  *   6. Sum all forces: F_total = Σ F_i
- *   7. Update velocity: v = v + F × dt (with friction and max speed cap)
- *   8. Update position: pos = pos + v × dt
- *   9. Wrap around edges (toroidal topology)
+ *   7. Update velocity: v = v × friction + F_total × dt
+ *   8. Cap velocity to MAX_SPEED
+ *   9. Update position: pos = pos + v × dt
+ *  10. Wrap around edges (toroidal topology)
  */
 
 // =============================================================================
@@ -52,15 +68,14 @@
 // =============================================================================
 
 export interface ParticleLife {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  type: number; // Color type (0-5 for rainbow colors)
-  targetX?: number; // Image formation target position
-  targetY?: number;
-  formationSpeed?: number; // Individual speed multiplier for text formation (0.5-1.5)
-  attractionProfile?: number[]; // Individual particle's attraction to each type (per-particle matrix row)
+  x: number;                    // Current X position in canvas coordinates
+  y: number;                    // Current Y position in canvas coordinates
+  vx: number;                   // Velocity X component
+  vy: number;                   // Velocity Y component
+  type: number;                 // Color type (0-11, maps to COLORS array)
+  targetX?: number;             // Target X position when forming text
+  targetY?: number;             // Target Y position when forming text
+  formationSpeed?: number;      // Speed multiplier for text formation (0.5-1.5, creates organic arrival)
 }
 
 
@@ -68,66 +83,93 @@ export interface ParticleLife {
 // Constants
 // =============================================================================
 
-// Particle types and their colors (rainbow + extras from Tailwind)
+// Particle types and their vibrant colors (Tailwind 500 series)
 const PARTICLE_TYPES = 12;
 const COLORS = [
-  { r: 239, g: 68, b: 68 },     // red-500
-  { r: 251, g: 146, b: 60 },    // orange-500
-  { r: 234, g: 179, b: 8 },     // yellow-500
-  { r: 132, g: 204, b: 22 },    // lime-500
-  { r: 34, g: 197, b: 94 },     // green-500
-  { r: 16, g: 185, b: 129 },    // emerald-500
-  { r: 20, g: 184, b: 166 },    // teal-500
-  { r: 6, g: 182, b: 212 },     // cyan-500
-  { r: 59, g: 130, b: 246 },    // blue-500
-  { r: 99, g: 102, b: 241 },    // indigo-500
-  { r: 168, g: 85, b: 247 },    // purple-500
-  { r: 236, g: 72, b: 153 },    // pink-500
+  { r: 239, g: 68, b: 68 },      // red-500
+  { r: 251, g: 146, b: 60 },     // orange-500
+  { r: 234, g: 179, b: 8 },      // yellow-500
+  { r: 132, g: 204, b: 22 },     // lime-500
+  { r: 34, g: 197, b: 94 },      // green-500
+  { r: 16, g: 185, b: 129 },     // emerald-500
+  { r: 20, g: 184, b: 166 },     // teal-500
+  { r: 6, g: 182, b: 212 },      // cyan-500
+  { r: 59, g: 130, b: 246 },     // blue-500
+  { r: 99, g: 102, b: 241 },     // indigo-500
+  { r: 168, g: 85, b: 247 },     // purple-500
+  { r: 236, g: 72, b: 153 },     // pink-500
 ];
 
 // Physics constants
-const FORCE_RANGE = 80;        // How far particles can "sense" each other
-const FRICTION = 0.88;         // Velocity damping (0-1, higher = slower)
-const MAX_FORCE = 180;         // Maximum force magnitude for particle life (reduced for gentler movement)
-const MAX_SPEED = 150;         // Maximum velocity (consistent across all modes)
-const REPULSION_RANGE = 8;     // Very close particles always repel (prevents overlap)
-const PARTICLE_COUNT = 2000;   // Initial particle count
-const PARTICLE_RADIUS = 1.5;   // Visual size of particles
+const FORCE_RANGE = 80;             // Interaction radius: particles sense neighbors within 80px
+const FRICTION = 0.88;              // Velocity damping per frame (0-1, higher = less friction)
+const MAX_FORCE = 180;              // Maximum force magnitude for particle life interactions
+const MAX_SPEED = 150;              // Velocity cap (prevents particles from moving too fast)
+const REPULSION_RANGE = 8;          // Close-range repulsion to prevent particle overlap
+const PARTICLE_COUNT = 2000;        // Base particle count (may increase for text density)
+const PARTICLE_RADIUS = 1.5;        // Visual size of each particle
 
-// Spatial partitioning - divide canvas into grid for faster neighbor lookups
-const CELL_SIZE = FORCE_RANGE;  // Cell size = force range (particles only interact within range)
+// Mouse/touch interaction
+const MOUSE_REPULSION_RANGE = 120;     // Radius of mouse repulsion bubble
+const MOUSE_REPULSION_STRENGTH = 800;  // Force strength (particles scatter from cursor)
+
+// Spatial partitioning optimization
+const CELL_SIZE = FORCE_RANGE;      // Grid cell size matches force range for optimal partitioning
 
 
-// Text formation cycle timing
-const EXPLOSION_DURATION = 2;     // Initial explosion duration
-const PARTICLE_LIFE_DURATION = 10; // Pure particle life chaos
-const FORMING_DURATION = 3;       // Transition to text formation
-const HOLDING_DURATION = 8;       // Hold text shape
-const DISSOLVE_DURATION = 2;      // Dissolve/explode back to chaos
+// Animation timing (in seconds)
+const EXPLOSION_DURATION = 2;      // Initial burst from center (unused - starts in HOLDING)
+const PARTICLE_LIFE_DURATION = 10; // Chaotic particle life between messages (or infinite after all messages)
+const FORMING_DURATION = 3;        // Particles transitioning to form text
+const HOLDING_DURATION = 8;        // Particles holding text shape (3s for first message)
+const DISSOLVE_DURATION = 2;       // Text dissolving back to chaos
 
-// Messages to cycle through
+// Introduction messages (shown once in sequence)
 const MESSAGES = [
   "Hi there,\nI am Matthias",
-  "a software developer",
-  "a bikepacker 🚲",
-  "who likes Badminton 🏸",
-  "and creative things.",
-  "These are my notes.",
+  "a software\ndeveloper",
+  "a bikepacker\n🚲",
+  "who likes\nBadminton 🏸",
+  "and creative\nthings.",
+  "These are\nmy notes.",
   "Enjoy!"
 ];
 
-// Text formation constants
-const LETTER_SPACING = 40;        // Horizontal spacing between characters
-const LETTER_HEIGHT = 60;         // Height of text
-const TEXT_SAMPLE_DENSITY = 3;    // Pixels between samples in text
+// Text rendering constants
+const LETTER_SPACING = 40;        // Horizontal spacing between characters (unused - relies on font kerning)
+const TEXT_SAMPLE_DENSITY = 3;    // Default pixel spacing between samples (overridden by responsive density)
 
-// Animation mode enum
+// Responsive font sizing
+const getResponsiveFontSize = (canvasWidth: number, canvasHeight: number): number => {
+  // Base font size on viewport dimensions
+  // Mobile: smaller font, Desktop: larger font
+  const minSize = 32;  // Minimum font size for very small screens (increased for crispness)
+  const maxSize = 80;  // Maximum font size for large screens (increased for crispness)
+
+  // Use the smaller dimension to ensure text fits
+  const smallerDimension = Math.min(canvasWidth, canvasHeight);
+
+  // Scale font size: 10% of smaller dimension, clamped between min and max
+  const scaledSize = smallerDimension * 0.1;
+  return Math.max(minSize, Math.min(maxSize, scaledSize));
+};
+
+// Get responsive sample density - sample more densely for better quality
+const getResponsiveSampleDensity = (fontSize: number): number => {
+  // Smaller fonts need denser sampling for crispness
+  // Larger fonts can use sparser sampling
+  if (fontSize < 40) return 2;  // Very dense for small text
+  if (fontSize < 60) return 2.5;  // Dense for medium text
+  return 3;  // Standard for large text
+};
+
+// Animation phases
 enum AnimationMode {
-  EXPLOSION = 'EXPLOSION',
-  PARTICLE_LIFE = 'PARTICLE_LIFE',
-  FORMING = 'FORMING',
-  HOLDING = 'HOLDING',
-  DISSOLVING = 'DISSOLVING',
+  EXPLOSION = 'EXPLOSION',       // Particles explode from center (unused in current flow)
+  PARTICLE_LIFE = 'PARTICLE_LIFE', // Chaotic particle life with attraction/repulsion
+  FORMING = 'FORMING',           // Particles moving to form text
+  HOLDING = 'HOLDING',           // Particles holding text shape
+  DISSOLVING = 'DISSOLVING',     // Text dissolving/exploding outward
 }
 
 // =============================================================================
@@ -146,18 +188,40 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   let currentMode: AnimationMode = AnimationMode.EXPLOSION;
   let modeStartTime = 0;
   let textTargets: Array<{ x: number; y: number; type: number }> = [];
+  let imageTargets: Array<{ x: number; y: number; type: number }> = [];
   let currentMessageIndex = 0;
   let isFirstMessage = true;
+  let simWidth = 0;
+  let simHeight = 0;
+  let dpr = 1;
 
-  // Spatial partitioning grid
-  let grid: Map<string, ParticleLife[]> = new Map();
+  // Mouse/touch interaction state
+  let mouseX: number | null = null;
+  let mouseY: number | null = null;
+  let isMouseActive = false;
+
+  // Spatial partitioning grid (pre-allocated to reduce churn)
+  let grid: ParticleLife[][] = [];
   let gridCols = 0;
   let gridRows = 0;
+  let gridSize = 0;
 
-  // Generate random attraction matrix
-  // This creates the "personality" of the particle system
-  // Each cell [i][j] determines how type i feels about type j
-  // Positive = attraction, negative = repulsion
+  /**
+   * Generate random attraction matrix defining particle behavior
+   *
+   * The matrix creates the "personality" of the particle system.
+   * Matrix[i][j] = how much particle type i is attracted to type j
+   * - Positive values (0 to 1): attraction
+   * - Negative values (-1 to 0): repulsion
+   *
+   * Different presets create distinct emergent behaviors:
+   * - planets: Orbital systems with satellites
+   * - snakes: Chasing chains (type N chases N+1)
+   * - chaos: Maximum variety with extreme values
+   * - balanced: Gentle, stable interactions
+   * - spirals: Rotational forces create spiral patterns
+   * - clusters: Grouping behavior with self-attraction
+   */
   const generateAttractionMatrix = (): number[][] => {
     const presets = [
       'random',
@@ -273,93 +337,141 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   let attractionMatrix = generateAttractionMatrix();
 
   // =============================================================================
-  // Utility Functions
+  // Canvas Management
   // =============================================================================
 
+  /**
+   * Resize canvas and regenerate text if needed
+   *
+   * Updates canvas dimensions and device pixel ratio for crisp rendering.
+   * If size changes significantly during text display, regenerates text targets
+   * to maintain proper sizing (important for mobile orientation changes).
+   */
   const resize = () => {
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
+    const oldWidth = simWidth;
+    const oldHeight = simHeight;
+    simWidth = rect.width;
+    simHeight = rect.height;
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(simWidth * dpr));
+    canvas.height = Math.max(1, Math.floor(simHeight * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Recalculate grid dimensions
-    gridCols = Math.ceil(canvas.width / CELL_SIZE);
-    gridRows = Math.ceil(canvas.height / CELL_SIZE);
+    // Recalculate grid dimensions and ensure grid allocation
+    gridCols = Math.max(1, Math.ceil(simWidth / CELL_SIZE));
+    gridRows = Math.max(1, Math.ceil(simHeight / CELL_SIZE));
+    const nextSize = gridCols * gridRows;
+    if (nextSize !== gridSize) {
+      grid = Array.from({ length: nextSize }, () => []);
+      gridSize = nextSize;
+    }
+
+    // If size changed significantly, regenerate text targets for current message
+    // This keeps text crisp and properly sized on orientation changes
+    const sizeChanged = Math.abs(oldWidth - simWidth) > 50 || Math.abs(oldHeight - simHeight) > 50;
+    if (sizeChanged && (currentMode === AnimationMode.FORMING || currentMode === AnimationMode.HOLDING)) {
+      generateTextTargets(MESSAGES[currentMessageIndex]);
+      assignTargetsToParticles();
+    }
   };
 
 
-  // Get current elapsed time in the current mode
+  /**
+   * Get elapsed time in current animation mode (in seconds)
+   */
   const getModeElapsedTime = (now: number): number => {
     return (now - modeStartTime) / 1000;
   };
 
-  // Check if we should transition to the next mode
-  const checkModeTransition = (now: number) => {
+  /**
+   * Get duration for a given animation mode
+   * Returns null for modes with no fixed duration
+   */
+  const getModeDuration = (mode: AnimationMode): number | null => {
+    switch (mode) {
+      case AnimationMode.EXPLOSION:
+        return EXPLOSION_DURATION;
+      case AnimationMode.PARTICLE_LIFE:
+        return PARTICLE_LIFE_DURATION;
+      case AnimationMode.FORMING:
+        return FORMING_DURATION;
+      case AnimationMode.HOLDING:
+        return isFirstMessage ? 3 : HOLDING_DURATION;
+      case AnimationMode.DISSOLVING:
+        return DISSOLVE_DURATION;
+      default:
+        return null;
+    }
+  };
+
+  /**
+   * Enter a new animation mode
+   *
+   * Handles mode-specific setup:
+   * - FORMING: Generate text targets and assign to particles
+   * - PARTICLE_LIFE: Generate new attraction matrix (during message sequence)
+   */
+  const enterMode = (mode: AnimationMode, now: number) => {
+    currentMode = mode;
+    modeStartTime = now;
+
+    if (mode === AnimationMode.FORMING) {
+      generateTextTargets(MESSAGES[currentMessageIndex]);
+      assignTargetsToParticles();
+    }
+
+    if (mode === AnimationMode.PARTICLE_LIFE && currentMessageIndex < MESSAGES.length) {
+      // New behavior profile per message cycle (before final state)
+      attractionMatrix = generateAttractionMatrix();
+    }
+  };
+
+  /**
+   * Check if current mode should advance and transition to next mode
+   *
+   * Flow logic:
+   * - Messages 0-6: HOLDING → DISSOLVING → PARTICLE_LIFE → FORMING → HOLDING (next message)
+   * - After message 6: DISSOLVING → PARTICLE_LIFE (infinite with matrix regeneration every 15s)
+   */
+  const advanceMode = (now: number) => {
+    const duration = getModeDuration(currentMode);
+    if (duration === null) return;
     const elapsed = getModeElapsedTime(now);
-    let shouldTransition = false;
+    if (elapsed < duration) return;
+
     let nextMode: AnimationMode | null = null;
 
     switch (currentMode) {
       case AnimationMode.EXPLOSION:
-        if (elapsed >= EXPLOSION_DURATION) {
-          shouldTransition = true;
-          nextMode = AnimationMode.PARTICLE_LIFE;
-        }
+        nextMode = AnimationMode.PARTICLE_LIFE;
         break;
       case AnimationMode.PARTICLE_LIFE:
-        // Only transition to next message if we haven't shown all messages yet
-        if (elapsed >= PARTICLE_LIFE_DURATION && currentMessageIndex < MESSAGES.length - 1) {
-          shouldTransition = true;
+        if (currentMessageIndex < MESSAGES.length) {
+          // Still have messages to show
           nextMode = AnimationMode.FORMING;
+        } else {
+          // All messages shown - stay in particle life forever
+          // Generate new matrix every 15s for evolving behavior
+          attractionMatrix = generateAttractionMatrix();
+          modeStartTime = now;
         }
-        // If we've shown all messages, stay in particle life forever (no transition)
         break;
       case AnimationMode.FORMING:
-        if (elapsed >= FORMING_DURATION) {
-          shouldTransition = true;
-          nextMode = AnimationMode.HOLDING;
-        }
+        nextMode = AnimationMode.HOLDING;
         break;
       case AnimationMode.HOLDING:
-        // Shorter duration for first message, normal duration for others
-        const holdDuration = isFirstMessage ? 3 : HOLDING_DURATION;
-        if (elapsed >= holdDuration) {
-          shouldTransition = true;
-          nextMode = AnimationMode.DISSOLVING;
-          isFirstMessage = false;
-        }
+        nextMode = AnimationMode.DISSOLVING;
+        isFirstMessage = false;
         break;
       case AnimationMode.DISSOLVING:
-        if (elapsed >= DISSOLVE_DURATION) {
-          // Check if we've shown all messages
-          if (currentMessageIndex < MESSAGES.length - 1) {
-            shouldTransition = true;
-            nextMode = AnimationMode.PARTICLE_LIFE;
-            currentMessageIndex = currentMessageIndex + 1;
-          } else {
-            // After last message, stay in particle life forever with one random matrix
-            shouldTransition = true;
-            nextMode = AnimationMode.PARTICLE_LIFE;
-            // Generate one final random preset matrix for endless particle life
-            attractionMatrix = generateAttractionMatrix();
-          }
-        }
+        currentMessageIndex = currentMessageIndex + 1;
+        nextMode = AnimationMode.PARTICLE_LIFE;
         break;
     }
 
-    if (shouldTransition && nextMode) {
-      currentMode = nextMode;
-      modeStartTime = now;
-
-      // When entering FORMING mode, generate text targets
-      if (currentMode === AnimationMode.FORMING) {
-        generateTextTargets(MESSAGES[currentMessageIndex]);
-        assignTargetsToParticles();
-      }
-
-      // When transitioning back to PARTICLE_LIFE (before final message), generate new attraction matrix
-      if (currentMode === AnimationMode.PARTICLE_LIFE && currentMessageIndex < MESSAGES.length - 1) {
-        attractionMatrix = generateAttractionMatrix();
-      }
+    if (nextMode) {
+      enterMode(nextMode, now);
     }
   };
 
@@ -367,10 +479,13 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   // Particle Creation
   // =============================================================================
 
-  // Create a random particle
+  /**
+   * Spawn a new particle at random position with random velocity
+   * @param type - Optional particle type (0-11), random if not specified
+   */
   const spawnParticle = (type?: number): ParticleLife => {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
+    const x = Math.random() * simWidth;
+    const y = Math.random() * simHeight;
 
     return {
       x,
@@ -383,51 +498,64 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
 
   // =============================================================================
-  // Spatial Partitioning
+  // Spatial Partitioning (Performance Optimization)
   // =============================================================================
 
-  // Build spatial grid for fast neighbor lookups
+  /**
+   * Build spatial partitioning grid for current frame
+   *
+   * Divides canvas into cells and assigns each particle to its cell.
+   * This allows O(n) neighbor lookups instead of O(n²) checks.
+   */
   const buildGrid = () => {
-    grid.clear();
+    if (gridSize === 0) return;
+    for (const cell of grid) cell.length = 0;
 
     for (const p of particles) {
-      const cellX = Math.floor(p.x / CELL_SIZE);
-      const cellY = Math.floor(p.y / CELL_SIZE);
-      const key = `${cellX},${cellY}`;
-
-      if (!grid.has(key)) {
-        grid.set(key, []);
-      }
-      grid.get(key)!.push(p);
+      const cellX = ((Math.floor(p.x / CELL_SIZE) % gridCols) + gridCols) % gridCols;
+      const cellY = ((Math.floor(p.y / CELL_SIZE) % gridRows) + gridRows) % gridRows;
+      const idx = cellY * gridCols + cellX;
+      grid[idx].push(p);
     }
   };
 
-  // Get all particles in neighboring cells (including particle's own cell)
-  const getNearbyParticles = (p: ParticleLife): ParticleLife[] => {
-    const cellX = Math.floor(p.x / CELL_SIZE);
-    const cellY = Math.floor(p.y / CELL_SIZE);
-    const nearby: ParticleLife[] = [];
+  /**
+   * Iterate through nearby particles in a 3×3 grid around the given particle
+   * Only checks particles in neighboring cells, not the entire simulation
+   */
+  const forEachNearbyParticle = (p: ParticleLife, fn: (other: ParticleLife) => void) => {
+    const cellX = ((Math.floor(p.x / CELL_SIZE) % gridCols) + gridCols) % gridCols;
+    const cellY = ((Math.floor(p.y / CELL_SIZE) % gridRows) + gridRows) % gridRows;
 
     // Check 3x3 grid of cells around particle
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
-        const key = `${cellX + dx},${cellY + dy}`;
-        const cellParticles = grid.get(key);
-        if (cellParticles) {
-          nearby.push(...cellParticles);
+        const x = (cellX + dx + gridCols) % gridCols;
+        const y = (cellY + dy + gridRows) % gridRows;
+        const idx = y * gridCols + x;
+        for (const other of grid[idx]) {
+          fn(other);
         }
       }
     }
-
-    return nearby;
   };
 
   // =============================================================================
-  // Force Calculations
+  // Force Calculations (Core Physics)
   // =============================================================================
 
-  // Calculate force between two particles based on attraction matrix
-  // This is the CORE of particle life behavior!
+  /**
+   * Calculate attraction/repulsion force between two particles
+   *
+   * This is the CORE of particle life behavior!
+   *
+   * Force formula:
+   * 1. Very close (< 8px): Strong repulsion to prevent overlap
+   * 2. Within range (< 80px): F = attraction[i][j] × (1 - d/range) × strength
+   * 3. Far away (> 80px): No interaction
+   *
+   * @returns Force vector {fx, fy} to apply to p1
+   */
   const calculateForce = (p1: ParticleLife, p2: ParticleLife): { fx: number; fy: number } => {
     const dx = p2.x - p1.x;
     const dy = p2.y - p1.y;
@@ -437,7 +565,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
     const dist = Math.sqrt(distSq);
 
-    // STRONG REPULSION at very close range (prevents particles from overlapping)
+    // REPULSION: Very close particles always repel (prevents clustering/overlap)
     if (dist < REPULSION_RANGE) {
       const repulsionForce = (REPULSION_RANGE - dist) / REPULSION_RANGE * 50;
       return {
@@ -446,21 +574,14 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       };
     }
 
-    // Outside force range, no interaction
+    // Beyond interaction range: no force
     if (dist > FORCE_RANGE) return { fx: 0, fy: 0 };
 
-    // Get attraction coefficient - use per-particle profile if available, otherwise global matrix
-    let attraction: number;
-    if (p1.attractionProfile) {
-      // Each particle has its own unique attraction rules!
-      attraction = p1.attractionProfile[p2.type];
-    } else {
-      // Use global matrix
-      attraction = attractionMatrix[p1.type][p2.type];
-    }
+    // ATTRACTION/REPULSION: Look up how p1's type feels about p2's type
+    const attraction = attractionMatrix[p1.type][p2.type];
 
-    // Force calculation with smooth linear falloff
-    // Formula: force = attraction × (1 - distance/range) × strength
+    // Linear falloff: force decreases with distance
+    // F = attraction × (1 - d/range) × strength
     const forceMagnitude = attraction * (1 - dist / FORCE_RANGE) * MAX_FORCE;
 
     // Normalize direction and apply magnitude
@@ -475,27 +596,57 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   // Text Formation
   // =============================================================================
 
-  // Generate target positions by rendering text to an offscreen canvas
+  /**
+   * Fisher-Yates shuffle algorithm (in-place)
+   * Randomizes array order to prevent clustering artifacts
+   */
+  const shuffleInPlace = <T>(items: T[]): T[] => {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+    return items;
+  };
+
+  /**
+   * Generate particle target positions by rendering text to offscreen canvas
+   *
+   * Process:
+   * 1. Render text at 2x resolution for quality
+   * 2. Sample pixel positions where text is visible (alpha > 128)
+   * 3. Assign random particle types for colorful text
+   * 4. Scale back to actual canvas coordinates
+   * 5. Shuffle to prevent clustering
+   */
   const generateTextTargets = (text: string) => {
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     if (!tempCtx) return;
 
-    // Set up canvas for text rendering
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
+    // Set up canvas for text rendering at higher resolution for better quality
+    const renderScale = 2;  // Render at 2x for better sampling
+    tempCanvas.width = simWidth * renderScale;
+    tempCanvas.height = simHeight * renderScale;
+
+    // Get responsive font size based on canvas dimensions
+    const fontSize = getResponsiveFontSize(simWidth, simHeight);
+    const sampleDensity = getResponsiveSampleDensity(fontSize);
 
     // Configure text style (matching the hero font)
-    tempCtx.font = `bold ${LETTER_HEIGHT}px "Pacifico", cursive`;
+    tempCtx.font = `bold ${fontSize * renderScale}px "Pacifico", cursive`;
     tempCtx.textAlign = 'center';
     tempCtx.textBaseline = 'middle';
     tempCtx.fillStyle = 'white';
 
+    // Enable better text rendering
+    tempCtx.imageSmoothingEnabled = true;
+    tempCtx.imageSmoothingQuality = 'high';
+
     // Draw text centered on canvas
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
+    const centerX = (simWidth * renderScale) / 2;
+    const centerY = (simHeight * renderScale) / 2;
     const lines = text.split('\n');
-    const lineHeight = LETTER_HEIGHT * 1.2;
+    const lineHeight = fontSize * renderScale * 1.3;
     const totalHeight = lines.length * lineHeight;
     const startY = centerY - totalHeight / 2 + lineHeight / 2;
 
@@ -507,8 +658,9 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
     const samples: Array<{ x: number; y: number; type: number }> = [];
 
-    for (let y = 0; y < tempCanvas.height; y += TEXT_SAMPLE_DENSITY) {
-      for (let x = 0; x < tempCanvas.width; x += TEXT_SAMPLE_DENSITY) {
+    const step = sampleDensity * renderScale;
+    for (let y = 0; y < tempCanvas.height; y += step) {
+      for (let x = 0; x < tempCanvas.width; x += step) {
         const idx = (y * tempCanvas.width + x) * 4;
         const alpha = imageData.data[idx + 3];
 
@@ -516,26 +668,36 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
         if (alpha > 128) {
           // Assign random particle type for colorful text
           const type = Math.floor(Math.random() * PARTICLE_TYPES);
-          samples.push({ x, y, type });
+          // Scale back to actual canvas coordinates
+          samples.push({
+            x: x / renderScale,
+            y: y / renderScale,
+            type
+          });
         }
       }
     }
 
+    // Shuffle in place to avoid clustering
+    shuffleInPlace(samples);
     textTargets = samples;
   };
 
-  // Assign text target positions to particles
-  const assignTargetsToParticles = () => {
-    if (textTargets.length === 0) return;
-
-    // Shuffle targets to avoid clustering
-    const shuffledTargets = [...textTargets].sort(() => Math.random() - 0.5);
+  /**
+   * Assign text formation targets to all particles
+   *
+   * Distributes target positions cyclically if there are more particles than targets.
+   * Each particle also gets a random formation speed for organic arrival timing.
+   */
+  const assignTargetsToParticles = (targets: Array<{ x: number; y: number; type: number }> = textTargets) => {
+    if (targets.length === 0) return;
 
     // Assign targets to particles (reuse targets if more particles than targets)
     for (let i = 0; i < particles.length; i++) {
-      const target = shuffledTargets[i % shuffledTargets.length];
+      const target = targets[i % targets.length];
       particles[i].targetX = target.x;
       particles[i].targetY = target.y;
+      particles[i].type = target.type;
       // Assign random speed for organic formation (0.5x to 1.5x base speed)
       particles[i].formationSpeed = 0.5 + Math.random();
     }
@@ -556,6 +718,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     }
 
     const rect = imgElement.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
     const targetWidth = rect.width;
     const targetHeight = rect.height;
 
@@ -580,9 +743,11 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
         // Only sample visible pixels (lower threshold for semi-transparent edges)
         if (a > 50) {
-          // Map to screen coordinates
+          // Map to canvas coordinates
           const screenX = rect.left + (x / tempCanvas.width) * targetWidth;
           const screenY = rect.top + (y / tempCanvas.height) * targetHeight;
+          const canvasX = (screenX - canvasRect.left) * (simWidth / canvasRect.width);
+          const canvasY = (screenY - canvasRect.top) * (simHeight / canvasRect.height);
 
           // Find closest particle color type
           let closestType = 0;
@@ -596,7 +761,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
             }
           }
 
-          samples.push({ x: screenX, y: screenY, type: closestType });
+          samples.push({ x: canvasX, y: canvasY, type: closestType });
         }
       }
     }
@@ -605,47 +770,53 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   };
 
 
-  // Get formation strength based on current mode
-  // Returns 0-1 value indicating how much particles should be pulled toward their targets
-  const getFormationStrength = (now: number): number => {
-    const elapsed = getModeElapsedTime(now);
-
-    switch (currentMode) {
-      case AnimationMode.EXPLOSION:
-      case AnimationMode.PARTICLE_LIFE:
-        return 0; // No formation attraction
-
-      case AnimationMode.FORMING:
-        // Smooth ease-in to formation
-        const formProgress = elapsed / FORMING_DURATION;
-        return Math.min(1, formProgress * formProgress); // Quadratic ease-in
-
-      case AnimationMode.HOLDING:
-        return 1; // Full strength to hold formation
-
-      case AnimationMode.DISSOLVING:
-        // Smooth ease-out from formation
-        const dissolveProgress = elapsed / DISSOLVE_DURATION;
-        return Math.max(0, 1 - dissolveProgress);
-
-      default:
-        return 0;
-    }
+  type ModeForces = {
+    formation: (elapsed: number) => number;
+    particleLife: (elapsed: number, formationStrength: number) => number;
+    explosion: boolean;
   };
 
-  // Get explosion force based on current mode
-  const getExplosionForce = (p: ParticleLife, now: number): { fx: number; fy: number } => {
-    if (currentMode !== AnimationMode.EXPLOSION && currentMode !== AnimationMode.DISSOLVING) {
-      return { fx: 0, fy: 0 };
-    }
+  const modeForces: Record<AnimationMode, ModeForces> = {
+    [AnimationMode.EXPLOSION]: {
+      formation: () => 0,
+      particleLife: () => 0,
+      explosion: true,
+    },
+    [AnimationMode.PARTICLE_LIFE]: {
+      formation: () => 0,
+      particleLife: () => 1,
+      explosion: false,
+    },
+    [AnimationMode.FORMING]: {
+      formation: (elapsed) => {
+        const formProgress = elapsed / FORMING_DURATION;
+        const eased = Math.min(1, formProgress * formProgress);
+        return Math.max(0, eased);
+      },
+      particleLife: (_elapsed, formationStrength) => 1 - formationStrength,
+      explosion: false,
+    },
+    [AnimationMode.HOLDING]: {
+      formation: () => 1,
+      particleLife: () => 0,
+      explosion: false,
+    },
+    [AnimationMode.DISSOLVING]: {
+      formation: (elapsed) => Math.max(0, 1 - elapsed / DISSOLVE_DURATION),
+      particleLife: () => 0,
+      explosion: true,
+    },
+  };
 
-    const elapsed = getModeElapsedTime(now);
-
-    let strength = 0;
+  /**
+   * Calculate explosion force (radial outward from center or text position)
+   * Used during EXPLOSION and DISSOLVING modes
+   */
+  const getExplosionForce = (p: ParticleLife, elapsed: number): { fx: number; fy: number } => {
     if (currentMode === AnimationMode.EXPLOSION) {
-      // Strong initial explosion from center that fades over time
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
+      // Burst from center (unused in current flow)
+      const centerX = simWidth / 2;
+      const centerY = simHeight / 2;
       const dx = p.x - centerX;
       const dy = p.y - centerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -653,15 +824,16 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       if (dist < 1) return { fx: 0, fy: 0 };
 
       const progress = elapsed / EXPLOSION_DURATION;
-      strength = 3000 * (1 - progress);
+      const strength = 3000 * (1 - progress);
 
       return {
         fx: (dx / dist) * strength,
         fy: (dy / dist) * strength,
       };
-    } else if (currentMode === AnimationMode.DISSOLVING) {
-      // Particles explode away from their TARGET position (not center)
-      // This makes them scatter in all directions from the text
+    }
+
+    if (currentMode === AnimationMode.DISSOLVING) {
+      // Scatter from text positions (creates directional explosion effect)
       if (p.targetX === undefined || p.targetY === undefined) {
         return { fx: 0, fy: 0 };
       }
@@ -671,7 +843,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist < 1) {
-        // If already at target, push in random direction
+        // Already at target: push in random direction
         const angle = Math.random() * Math.PI * 2;
         return {
           fx: Math.cos(angle) * 6000,
@@ -680,7 +852,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       }
 
       const progress = elapsed / DISSOLVE_DURATION;
-      strength = 6000 * Math.max(0, 1 - progress);
+      const strength = 6000 * Math.max(0, 1 - progress);
 
       return {
         fx: (dx / dist) * strength,
@@ -691,74 +863,138 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     return { fx: 0, fy: 0 };
   };
 
-
-  // =============================================================================
-  // Physics Update
-  // =============================================================================
-
-  // Update particle physics
-  const updateParticle = (p: ParticleLife, dt: number, now: number) => {
+  /**
+   * Calculate particle life forces (attraction/repulsion from nearby particles)
+   * @param strength - Multiplier for blending with other forces (0-1)
+   */
+  const getParticleLifeForce = (p: ParticleLife, strength: number): { fx: number; fy: number } => {
+    if (strength <= 0) return { fx: 0, fy: 0 };
 
     let totalFx = 0;
     let totalFy = 0;
 
-    // Get formation strength first to determine which forces to apply
-    const formationStrength = getFormationStrength(now);
+    forEachNearbyParticle(p, (other) => {
+      if (other === p) return;
+      const { fx, fy } = calculateForce(p, other);
+      totalFx += fx;
+      totalFy += fy;
+    });
 
-    // Apply particle life forces (but blend them out as formation starts)
-    // Use spatial partitioning to only check nearby particles
-    if (currentMode === AnimationMode.PARTICLE_LIFE || currentMode === AnimationMode.EXPLOSION) {
-      // Calculate forces from nearby particles only (spatial optimization)
-      const nearbyParticles = getNearbyParticles(p);
-      for (const other of nearbyParticles) {
-        if (other === p) continue;
+    return { fx: totalFx * strength, fy: totalFy * strength };
+  };
 
-        const { fx, fy } = calculateForce(p, other);
-        totalFx += fx;
-        totalFy += fy;
-      }
-    } else if (currentMode === AnimationMode.FORMING) {
-      // During FORMING, gradually reduce particle life forces
-      const particleLifeStrength = 1 - formationStrength;
-      const nearbyParticles = getNearbyParticles(p);
-      for (const other of nearbyParticles) {
-        if (other === p) continue;
-
-        const { fx, fy } = calculateForce(p, other);
-        totalFx += fx * particleLifeStrength;
-        totalFy += fy * particleLifeStrength;
-      }
+  /**
+   * Calculate text formation force (attraction to target position)
+   * @param strength - 0 during particle life, ramps up during FORMING, 1 during HOLDING
+   */
+  const getFormationForce = (p: ParticleLife, strength: number): { fx: number; fy: number } => {
+    if (strength <= 0 || p.targetX === undefined || p.targetY === undefined) {
+      return { fx: 0, fy: 0 };
     }
 
-    // Add explosion force
-    const explosionForce = getExplosionForce(p, now);
-    totalFx += explosionForce.fx;
-    totalFy += explosionForce.fy;
+    const dx = p.targetX - p.x;
+    const dy = p.targetY - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Add text formation force
-    if (formationStrength > 0 && p.targetX !== undefined && p.targetY !== undefined && textTargets.length > 0) {
-      const dx = p.targetX - p.x;
-      const dy = p.targetY - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 1) return { fx: 0, fy: 0 };
 
-      if (dist > 1) {
-        // Strong attraction to target position, scaled by formation strength and particle's individual speed
-        const speedMultiplier = p.formationSpeed || 1.0;
-        const attractionForce = 2500 * formationStrength * speedMultiplier;
-        totalFx += (dx / dist) * attractionForce;
-        totalFy += (dy / dist) * attractionForce;
-      }
+    const speedMultiplier = p.formationSpeed || 1.0;
+    const attractionForce = 2500 * strength * speedMultiplier;
+
+    return {
+      fx: (dx / dist) * attractionForce,
+      fy: (dy / dist) * attractionForce,
+    };
+  };
+
+  /**
+   * Calculate mouse/touch repulsion force
+   * Only active during PARTICLE_LIFE mode to avoid interfering with text formation
+   */
+  const getMouseRepulsionForce = (p: ParticleLife): { fx: number; fy: number } => {
+    if (!isMouseActive || mouseX === null || mouseY === null || currentMode !== AnimationMode.PARTICLE_LIFE) {
+      return { fx: 0, fy: 0 };
     }
 
-    // Apply forces to velocity (F = ma, assuming m = 1)
+    const dx = p.x - mouseX;
+    const dy = p.y - mouseY;
+    const distSq = dx * dx + dy * dy;
+    const dist = Math.sqrt(distSq);
+
+    if (dist > MOUSE_REPULSION_RANGE || dist < 0.1) {
+      return { fx: 0, fy: 0 };
+    }
+
+    // Quadratic falloff: stronger repulsion when closer
+    const falloff = 1 - (dist / MOUSE_REPULSION_RANGE);
+    const forceMagnitude = MOUSE_REPULSION_STRENGTH * falloff * falloff;
+
+    return {
+      fx: (dx / dist) * forceMagnitude,
+      fy: (dy / dist) * forceMagnitude,
+    };
+  };
+
+
+  // =============================================================================
+  // Physics Update Loop
+  // =============================================================================
+
+  /**
+   * Update a single particle's physics for one frame
+   *
+   * Combines multiple forces based on current animation mode:
+   * - Particle life forces (neighbor interactions)
+   * - Explosion forces (mode-specific)
+   * - Formation forces (text attraction)
+   * - Mouse repulsion forces
+   *
+   * Then applies friction, velocity cap, and position update with edge wrapping.
+   */
+  const updateParticle = (p: ParticleLife, dt: number, now: number) => {
+    let totalFx = 0;
+    let totalFy = 0;
+
+    const elapsed = getModeElapsedTime(now);
+    const forces = modeForces[currentMode];
+    const formationStrength = forces.formation(elapsed);
+    const particleLifeStrength = forces.particleLife(elapsed, formationStrength);
+
+    // 1. Particle life force (attraction/repulsion from neighbors)
+    if (particleLifeStrength > 0) {
+      const { fx, fy } = getParticleLifeForce(p, particleLifeStrength);
+      totalFx += fx;
+      totalFy += fy;
+    }
+
+    // 2. Explosion force (radial burst)
+    if (forces.explosion) {
+      const explosionForce = getExplosionForce(p, elapsed);
+      totalFx += explosionForce.fx;
+      totalFy += explosionForce.fy;
+    }
+
+    // 3. Formation force (attraction to text position)
+    if (formationStrength > 0) {
+      const formationForce = getFormationForce(p, formationStrength);
+      totalFx += formationForce.fx;
+      totalFy += formationForce.fy;
+    }
+
+    // 4. Mouse/touch repulsion force
+    const mouseForce = getMouseRepulsionForce(p);
+    totalFx += mouseForce.fx;
+    totalFy += mouseForce.fy;
+
+    // Apply total force to velocity (F = ma, mass = 1)
     p.vx += totalFx * dt;
     p.vy += totalFy * dt;
 
-    // Apply friction/damping
+    // Apply friction (damping)
     p.vx *= FRICTION;
     p.vy *= FRICTION;
 
-    // Cap speed to maximum (consistent across all modes)
+    // Clamp velocity to maximum speed
     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
     if (speed > MAX_SPEED) {
       const scale = MAX_SPEED / speed;
@@ -770,19 +1006,20 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
-    // Wrap around edges (toroidal topology)
-    // Particles that go off one edge appear on the opposite edge
-    if (p.x < 0) p.x += canvas.width;
-    if (p.x > canvas.width) p.x -= canvas.width;
-    if (p.y < 0) p.y += canvas.height;
-    if (p.y > canvas.height) p.y -= canvas.height;
+    // Toroidal wrapping: particles exiting one edge appear on opposite edge
+    if (p.x < 0) p.x += simWidth;
+    if (p.x > simWidth) p.x -= simWidth;
+    if (p.y < 0) p.y += simHeight;
+    if (p.y > simHeight) p.y -= simHeight;
   };
 
   // =============================================================================
   // Rendering
   // =============================================================================
 
-  // Draw a particle
+  /**
+   * Draw a single particle as a colored circle
+   */
   const drawParticle = (p: ParticleLife) => {
     const color = COLORS[p.type];
     ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
@@ -792,28 +1029,33 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   };
 
   // =============================================================================
-  // Main Loop
+  // Main Animation Loop
   // =============================================================================
 
+  /**
+   * Main render loop - runs every frame via requestAnimationFrame
+   *
+   * 1. Check for mode transitions
+   * 2. Clear canvas
+   * 3. Build spatial grid
+   * 4. Update all particles
+   * 5. Draw all particles
+   */
   const render = () => {
     const now = performance.now();
     const dt = Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
-    // Check for mode transitions
-    checkModeTransition(now);
+    advanceMode(now);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, simWidth, simHeight);
 
-    // Build spatial grid for this frame
     buildGrid();
 
-    // Update all particles
     for (const p of particles) {
       updateParticle(p, dt, now);
     }
 
-    // Draw all particles
     for (const p of particles) {
       drawParticle(p);
     }
@@ -825,27 +1067,83 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   // Public API
   // =============================================================================
 
+  /**
+   * Sample image for particle formation targets (experimental/WIP)
+   * Currently not used in main flow
+   */
   const setImageTargets = async (imgElement: HTMLImageElement) => {
     await sampleImageTargets(imgElement);
-    assignTargetsToParticles();
+    assignTargetsToParticles(imageTargets);
   };
 
+  /**
+   * Track mouse position in canvas coordinates
+   */
+  const handleMouseMove = (e: MouseEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = (e.clientX - rect.left) * (simWidth / rect.width);
+    mouseY = (e.clientY - rect.top) * (simHeight / rect.height);
+    isMouseActive = true;
+  };
+
+  const handleMouseLeave = () => {
+    isMouseActive = false;
+    mouseX = null;
+    mouseY = null;
+  };
+
+  /**
+   * Track touch position in canvas coordinates
+   * Only during PARTICLE_LIFE to avoid interfering with scroll gestures
+   */
+  const handleTouchMove = (e: TouchEvent) => {
+    if (currentMode === AnimationMode.PARTICLE_LIFE && e.touches.length > 0) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      mouseX = (touch.clientX - rect.left) * (simWidth / rect.width);
+      mouseY = (touch.clientY - rect.top) * (simHeight / rect.height);
+      isMouseActive = true;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    isMouseActive = false;
+    mouseX = null;
+    mouseY = null;
+  };
+
+  /**
+   * Start the particle system
+   *
+   * 1. Set up event listeners for mouse/touch interaction
+   * 2. Generate first message text targets
+   * 3. Spawn particles at target positions (starts in formed text state)
+   * 4. Enter HOLDING mode for first message
+   * 5. Start animation loop
+   */
   const start = () => {
     resize();
 
-    // Generate the first message targets immediately
+    // Set up interaction handlers
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
+    canvas.addEventListener('touchend', handleTouchEnd);
+    canvas.addEventListener('touchcancel', handleTouchEnd);
+
+    // Generate first message
     generateTextTargets(MESSAGES[0]);
 
-    // Spawn particles directly at their target positions
     particles.length = 0;
     if (textTargets.length === 0) return;
 
-    const shuffledTargets = [...textTargets].sort(() => Math.random() - 0.5);
+    // Ensure good text density: use at least 2000 particles or 1.2x target count
+    const particleCount = Math.max(PARTICLE_COUNT, textTargets.length * 1.2);
 
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      const target = shuffledTargets[i % shuffledTargets.length];
+    // Spawn particles already in text formation (first message shows immediately)
+    for (let i = 0; i < particleCount; i++) {
+      const target = textTargets[i % textTargets.length];
       const p = spawnParticle(target.type);
-      // Start particles at their target position
       p.x = target.x;
       p.y = target.y;
       p.vx = 0;
@@ -856,21 +1154,33 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       particles.push(p);
     }
 
-    // Initialize animation state - start directly in HOLDING mode
-    lastTime = performance.now();
-    modeStartTime = performance.now();
-    currentMode = AnimationMode.HOLDING;
+    // Start in HOLDING mode showing first message
+    const now = performance.now();
+    lastTime = now;
     currentMessageIndex = 0;
+    isFirstMessage = true;
+    enterMode(AnimationMode.HOLDING, now);
 
     render();
   };
 
+  /**
+   * Stop the particle system and clean up
+   */
   const stop = () => {
     if (animationId) {
       cancelAnimationFrame(animationId);
       animationId = null;
     }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Clean up event listeners
+    canvas.removeEventListener('mousemove', handleMouseMove);
+    canvas.removeEventListener('mouseleave', handleMouseLeave);
+    canvas.removeEventListener('touchmove', handleTouchMove);
+    canvas.removeEventListener('touchend', handleTouchEnd);
+    canvas.removeEventListener('touchcancel', handleTouchEnd);
+
+    ctx.clearRect(0, 0, simWidth, simHeight);
   };
 
   return { start, stop, resize, setImageTargets };
