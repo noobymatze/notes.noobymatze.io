@@ -79,9 +79,11 @@ posts.sort((a, b) => b.data.date - a.data.date);
       }, { once: true });
     };
 
-    // Start particles immediately
+    // Wait for all fonts to be ready before starting particles
     let ready = false;
-    particleSystem?.start();
+    document.fonts.ready.then(() => {
+      particleSystem?.start();
+    });
 
     // After 3 seconds (first message hold duration), fade out the image as particles start to dissolve
     const timer = setTimeout(() => {

@@ -106,7 +106,8 @@ const FRICTION = 0.88;              // Velocity damping per frame (0-1, higher =
 const MAX_FORCE = 180;              // Maximum force magnitude for particle life interactions
 const MAX_SPEED = 150;              // Velocity cap (prevents particles from moving too fast)
 const REPULSION_RANGE = 8;          // Close-range repulsion to prevent particle overlap
-const PARTICLE_COUNT = 2000;        // Base particle count (may increase for text density)
+const PARTICLE_COUNT = 2000;        // Base particle count for desktop
+const PARTICLE_COUNT_MOBILE = 1000; // Reduced particle count for mobile performance
 const PARTICLE_RADIUS = 1.5;        // Visual size of each particle
 
 // Mouse/touch interaction
@@ -158,9 +159,9 @@ const getResponsiveFontSize = (canvasWidth: number, canvasHeight: number): numbe
 const getResponsiveSampleDensity = (fontSize: number): number => {
   // Smaller fonts need denser sampling for crispness
   // Larger fonts can use sparser sampling
-  if (fontSize < 40) return 2;  // Very dense for small text
-  if (fontSize < 60) return 2.5;  // Dense for medium text
-  return 3;  // Standard for large text
+  if (fontSize < 40) return 2.5;  // Moderate density for small text (mobile)
+  if (fontSize < 60) return 3;    // Standard density for medium text
+  return 3.5;  // Slightly sparser for large text
 };
 
 // Animation phases
@@ -624,16 +625,20 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     if (!tempCtx) return;
 
     // Set up canvas for text rendering at higher resolution for better quality
-    const renderScale = 2;  // Render at 2x for better sampling
-    tempCanvas.width = simWidth * renderScale;
-    tempCanvas.height = simHeight * renderScale;
+    // Use fixed 2x scale, independent of device pixel ratio
+    const renderScale = 2;
+    const canvasWidth = Math.floor(simWidth * renderScale);
+    const canvasHeight = Math.floor(simHeight * renderScale);
+
+    tempCanvas.width = canvasWidth;
+    tempCanvas.height = canvasHeight;
 
     // Get responsive font size based on canvas dimensions
     const fontSize = getResponsiveFontSize(simWidth, simHeight);
     const sampleDensity = getResponsiveSampleDensity(fontSize);
 
     // Configure text style (matching the hero font)
-    tempCtx.font = `bold ${fontSize * renderScale}px "Pacifico", cursive`;
+    tempCtx.font = `bold ${Math.floor(fontSize * renderScale)}px "Pacifico", cursive`;
     tempCtx.textAlign = 'center';
     tempCtx.textBaseline = 'middle';
     tempCtx.fillStyle = 'white';
@@ -643,10 +648,10 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     tempCtx.imageSmoothingQuality = 'high';
 
     // Draw text centered on canvas
-    const centerX = (simWidth * renderScale) / 2;
-    const centerY = (simHeight * renderScale) / 2;
+    const centerX = canvasWidth / 2;
+    const centerY = canvasHeight / 2;
     const lines = text.split('\n');
-    const lineHeight = fontSize * renderScale * 1.3;
+    const lineHeight = Math.floor(fontSize * renderScale * 1.3);
     const totalHeight = lines.length * lineHeight;
     const startY = centerY - totalHeight / 2 + lineHeight / 2;
 
@@ -1122,23 +1127,43 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
    * 5. Start animation loop
    */
   const start = () => {
-    resize();
-
-    // Set up interaction handlers
+    // Set up interaction handlers first
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseleave', handleMouseLeave);
     canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
     canvas.addEventListener('touchend', handleTouchEnd);
     canvas.addEventListener('touchcancel', handleTouchEnd);
 
+    // Wait for layout to settle before measuring canvas and generating text
+    requestAnimationFrame(() => {
+      resize();
+
+      // Double-check we have valid dimensions
+      if (simWidth === 0 || simHeight === 0) {
+        // Try one more time after another frame
+        requestAnimationFrame(() => {
+          resize();
+          initializeParticles();
+        });
+      } else {
+        initializeParticles();
+      }
+    });
+  };
+
+  const initializeParticles = () => {
     // Generate first message
     generateTextTargets(MESSAGES[0]);
 
     particles.length = 0;
     if (textTargets.length === 0) return;
 
-    // Ensure good text density: use at least 2000 particles or 1.2x target count
-    const particleCount = Math.max(PARTICLE_COUNT, textTargets.length * 1.2);
+    // Use fewer particles on mobile for better performance
+    const isMobile = simWidth < 768;
+    const baseCount = isMobile ? PARTICLE_COUNT_MOBILE : PARTICLE_COUNT;
+
+    // Ensure good text density: use base count or 1.2x target count
+    const particleCount = Math.max(baseCount, textTargets.length * 1.2);
 
     // Spawn particles already in text formation (first message shows immediately)
     for (let i = 0; i < particleCount; i++) {
