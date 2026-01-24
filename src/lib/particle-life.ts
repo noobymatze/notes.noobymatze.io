@@ -708,73 +708,6 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     }
   };
 
-  // =============================================================================
-  // Image Formation (WIP - Currently Debugging)
-  // =============================================================================
-
-  // Sample the profile image to get target positions for particles
-  // Goal: Extract pixel positions and colors from the circular profile photo
-  // Problem: Currently only getting ~9 samples due to transparency
-  const sampleImageTargets = async (imgElement: HTMLImageElement) => {
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) {
-      return;
-    }
-
-    const rect = imgElement.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-    const targetWidth = rect.width;
-    const targetHeight = rect.height;
-
-    tempCanvas.width = imgElement.naturalWidth;
-    tempCanvas.height = imgElement.naturalHeight;
-
-    tempCtx.drawImage(imgElement, 0, 0);
-
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const samples: Array<{ x: number; y: number; type: number }> = [];
-
-    // Sample every 2nd pixel for better coverage
-    const sampleRate = 2;
-
-    for (let y = 0; y < tempCanvas.height; y += sampleRate) {
-      for (let x = 0; x < tempCanvas.width; x += sampleRate) {
-        const idx = (y * tempCanvas.width + x) * 4;
-        const r = imageData.data[idx];
-        const g = imageData.data[idx + 1];
-        const b = imageData.data[idx + 2];
-        const a = imageData.data[idx + 3];
-
-        // Only sample visible pixels (lower threshold for semi-transparent edges)
-        if (a > 50) {
-          // Map to canvas coordinates
-          const screenX = rect.left + (x / tempCanvas.width) * targetWidth;
-          const screenY = rect.top + (y / tempCanvas.height) * targetHeight;
-          const canvasX = (screenX - canvasRect.left) * (simWidth / canvasRect.width);
-          const canvasY = (screenY - canvasRect.top) * (simHeight / canvasRect.height);
-
-          // Find closest particle color type
-          let closestType = 0;
-          let minDist = Infinity;
-          for (let i = 0; i < PARTICLE_TYPES; i++) {
-            const color = COLORS[i];
-            const dist = Math.abs(r - color.r) + Math.abs(g - color.g) + Math.abs(b - color.b);
-            if (dist < minDist) {
-              minDist = dist;
-              closestType = i;
-            }
-          }
-
-          samples.push({ x: canvasX, y: canvasY, type: closestType });
-        }
-      }
-    }
-
-    imageTargets = samples;
-  };
-
-
   type ModeForces = {
     formation: (elapsed: number) => number;
     particleLife: (elapsed: number, formationStrength: number) => number;
@@ -1073,15 +1006,6 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   // =============================================================================
 
   /**
-   * Sample image for particle formation targets (experimental/WIP)
-   * Currently not used in main flow
-   */
-  const setImageTargets = async (imgElement: HTMLImageElement) => {
-    await sampleImageTargets(imgElement);
-    assignTargetsToParticles(imageTargets);
-  };
-
-  /**
    * Track mouse position in canvas coordinates
    */
   const handleMouseMove = (e: MouseEvent) => {
@@ -1220,6 +1144,14 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     const now = performance.now();
     const elapsed = getModeElapsedTime(now);
 
+    // If we're past all messages (infinite particle life mode), return completed state
+    if (currentMessageIndex >= MESSAGES.length) {
+      return {
+        segmentIndex: MESSAGES.length - 1,
+        progress: 1,
+      };
+    }
+
     // Note: currentMessageIndex increments after DISSOLVING, so during PARTICLE_LIFE/FORMING
     // we need to use the previous message index
     let segmentIndex: number;
@@ -1256,5 +1188,5 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     };
   };
 
-  return { start, stop, resize, setImageTargets, getProgress };
+  return { start, stop, resize, getProgress };
 }

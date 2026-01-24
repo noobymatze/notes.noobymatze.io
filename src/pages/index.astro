@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
 import {getCollection} from "astro:content";
 import Post from "../components/Post.astro";
 import "@fontsource/pacifico";
@@ -11,9 +12,10 @@ posts.sort((a, b) => b.data.date - a.data.date);
 ---
 
 <Layout title="Notes of Matthias">
+  <Header sticky={true} showReplay={true}/>
   <section
     id="hero"
-    class="fixed inset-0 z-50 flex flex-col items-center justify-center hero-bg"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center hero-bg hidden"
     aria-label="Hi there, I am Matthias"
   >
     <!-- Progress bar segments -->
@@ -33,7 +35,7 @@ posts.sort((a, b) => b.data.date - a.data.date);
 
     <button
       id="enter-btn"
-      class="absolute bottom-12 p-2 rounded-full text-white bg-transparent border-none cursor-pointer enter-btn hover:bg-white/10 focus:outline-2 focus:outline-white focus:outline-offset-4"
+      class="absolute bottom-12 p-2 rounded-full text-white/20 bg-transparent border-none cursor-pointer enter-btn hover:text-white hover:bg-white/10 focus:outline-2 focus:outline-white focus:outline-offset-4 transition-colors duration-300"
       aria-label="Enter site"
     >
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -43,12 +45,10 @@ posts.sort((a, b) => b.data.date - a.data.date);
   </section>
 
   <main id="main-content" class="min-h-screen focus:outline-none" tabindex="-1">
-    <div class="mx-auto pt-8 max-w-3xl prose-xl p-4 border-b pb-12">
-      <h1 class="font-bold">Hey!</h1>
+    <div class="mx-auto pt-36 max-w-3xl prose-xl p-4 border-b pb-12">
       <p class="text-2xl">
-        My name is Matthias, welcome to my notes. I am
-        a software developer based in northern Germany. On here,
-        I write down some thoughts, explorations and things I have learned.
+        Hi there, my name is Matthias, welcome to my notes. I am
+        a software developer based in northern Germany.
       </p>
       <p class="text-2xl mt-2">Have fun!</p>
     </div>
@@ -69,7 +69,14 @@ posts.sort((a, b) => b.data.date - a.data.date);
   const profileImg = document.getElementById('profile-img') as HTMLImageElement | null;
   const progressContainer = document.getElementById('progress-container');
 
+  // Check if this is the first visit
+  const hasSeenIntro = localStorage.getItem('hasSeenParticleIntro');
+
   if (hero && enterBtn && mainContent && particlesCanvas && heroContent && profileImg && progressContainer) {
+    // Show hero only on first visit
+    if (!hasSeenIntro) {
+      hero.classList.remove('hidden');
+    }
     // Create progress bar segments: 7 messages (each includes its transition)
     const NUM_SEGMENTS = 7;
     const segments: HTMLDivElement[] = [];
@@ -97,12 +104,45 @@ posts.sort((a, b) => b.data.date - a.data.date);
       if (revealed) return;
       revealed = true;
       particleSystem?.stop();
+      localStorage.setItem('hasSeenParticleIntro', 'true');
       hero.classList.add('hero-exit');
       hero.addEventListener('animationend', () => {
-        hero.style.display = 'none';
+        hero.classList.add('hidden');
+        hero.classList.remove('hero-exit');
         mainContent.focus();
         cleanup();
       }, { once: true });
+    };
+
+    const showHero = () => {
+      // Reset state
+      revealed = false;
+      lastSegmentIndex = -1;
+      hero.classList.remove('hidden');
+      hero.style.display = '';
+      progressContainer.style.opacity = '0.4';
+
+      // Reset progress bars
+      segmentFills.forEach(fill => {
+        fill.style.width = '0%';
+      });
+
+      // Reset profile image
+      if (profileImg) {
+        profileImg.style.opacity = '1';
+      }
+
+      // Start particle system
+      particleSystem?.start();
+      updateProgress();
+
+      // Fade out image after 3s
+      setTimeout(() => {
+        if (profileImg) {
+          profileImg.style.transition = 'opacity 1s ease-out';
+          profileImg.style.opacity = '0';
+        }
+      }, 3000);
     };
 
     // Track last segment index to avoid re-animating completed segments
@@ -137,26 +177,30 @@ posts.sort((a, b) => b.data.date - a.data.date);
       requestAnimationFrame(updateProgress);
     };
 
-    // Wait for Source Serif Pro bold to be loaded before starting particles
+    // Wait for Source Serif Pro bold to be loaded before starting particles (only if showing intro)
     let ready = false;
-    Promise.all([
-      document.fonts.load('400 16px "Source Serif Pro"'),
-      document.fonts.load('700 16px "Source Serif Pro"')
-    ]).then(() => {
-      particleSystem?.start();
-      updateProgress(); // Start progress bar updates
-    }).catch(() => {
-      // Fallback: use document.fonts.ready if specific loading fails
-      document.fonts.ready.then(() => {
+    if (!hasSeenIntro) {
+      Promise.all([
+        document.fonts.load('400 16px "Source Serif Pro"'),
+        document.fonts.load('700 16px "Source Serif Pro"')
+      ]).then(() => {
         particleSystem?.start();
-        updateProgress();
+        updateProgress(); // Start progress bar updates
+      }).catch(() => {
+        // Fallback: use document.fonts.ready if specific loading fails
+        document.fonts.ready.then(() => {
+          particleSystem?.start();
+          updateProgress();
+        });
       });
-    });
+    }
 
     // After 3 seconds (first message hold duration), fade out the image as particles start to dissolve
     const timer = setTimeout(() => {
-      profileImg.style.transition = 'opacity 1s ease-out';
-      profileImg.style.opacity = '0';
+      if (profileImg) {
+        profileImg.style.transition = 'opacity 1s ease-out';
+        profileImg.style.opacity = '0';
+      }
       ready = true;
     }, 3000);
 
@@ -185,6 +229,12 @@ posts.sort((a, b) => b.data.date - a.data.date);
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('resize', onResize);
     };
+
+    // Handle replay button click
+    const replayBtn = document.getElementById('replay-particles-btn');
+    if (replayBtn) {
+      replayBtn.addEventListener('click', showHero);
+    }
   }
 </script>
 
@@ -201,10 +251,8 @@ posts.sort((a, b) => b.data.date - a.data.date);
   }
 
   .enter-btn {
-    opacity: 0;
-    animation: fadeIn 0.5s ease-out 3s forwards, bounce 1.5s ease-in-out 3.5s infinite;
+    animation: bounce 1.5s ease-in-out 0.5s infinite;
   }
-  @keyframes fadeIn { to { opacity: 1; } }
   @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
 
   @media (prefers-reduced-motion: reduce) {
