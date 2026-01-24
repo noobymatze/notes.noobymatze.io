@@ -17,7 +17,7 @@ posts.sort((a, b) => b.data.date - a.data.date);
     aria-label="Hi there, I am Matthias"
   >
     <!-- Progress bar segments -->
-    <div id="progress-container" class="absolute top-4 left-4 right-4 z-10 flex gap-1 opacity-50">
+    <div id="progress-container" class="absolute top-4 left-4 right-4 z-10 flex gap-1 opacity-40 transition-opacity duration-500">
       <!-- Will be populated with segments via JS -->
     </div>
 
@@ -70,19 +70,17 @@ posts.sort((a, b) => b.data.date - a.data.date);
   const progressContainer = document.getElementById('progress-container');
 
   if (hero && enterBtn && mainContent && particlesCanvas && heroContent && profileImg && progressContainer) {
-    // Create progress bar segments:
-    // Message 0 | Particle Life | Message 1 | Particle Life | ... | Message 6
-    // = 7 messages + 6 particle life phases = 13 segments
-    const NUM_SEGMENTS = 13;
+    // Create progress bar segments: 7 messages (each includes its transition)
+    const NUM_SEGMENTS = 7;
     const segments: HTMLDivElement[] = [];
     const segmentFills: HTMLDivElement[] = [];
 
     for (let i = 0; i < NUM_SEGMENTS; i++) {
       const segment = document.createElement('div');
-      segment.className = 'flex-1 h-0.5 bg-white/15 rounded-full overflow-hidden';
+      segment.className = 'flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden';
 
       const fill = document.createElement('div');
-      fill.className = 'h-full bg-white/70 rounded-full';
+      fill.className = 'h-full bg-white/60 rounded-full';
       fill.style.width = '0%';
       fill.style.transformOrigin = 'left';
       fill.style.transition = 'none';
@@ -129,6 +127,11 @@ posts.sort((a, b) => b.data.date - a.data.date);
       // Update current segment based on progress (don't touch previous/future segments)
       if (segmentIndex < NUM_SEGMENTS) {
         segmentFills[segmentIndex].style.width = `${progress * 100}%`;
+      }
+
+      // When all segments are complete, fade out the progress bar
+      if (segmentIndex >= NUM_SEGMENTS - 1 && progress >= 0.99) {
+        progressContainer.style.opacity = '0';
       }
 
       requestAnimationFrame(updateProgress);

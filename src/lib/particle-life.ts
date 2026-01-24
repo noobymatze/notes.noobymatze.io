@@ -1210,52 +1210,44 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
   /**
    * Get current progress information for progress bar
-   * Maps to 13 segments:
-   * - Segment 0: Message 0 (HOLDING + DISSOLVING)
-   * - Segment 1: Particle Life (PARTICLE_LIFE + FORMING to message 1)
-   * - Segment 2: Message 1 (HOLDING + DISSOLVING)
-   * - Segment 3: Particle Life (PARTICLE_LIFE + FORMING to message 2)
+   * Maps to 7 segments (one per message):
+   * - Segment 0: Message 0 (HOLDING + DISSOLVING + PARTICLE_LIFE + FORMING)
+   * - Segment 1: Message 1 (HOLDING + DISSOLVING + PARTICLE_LIFE + FORMING)
    * ...
-   * - Segment 12: Message 6 (HOLDING + DISSOLVING)
+   * - Segment 6: Message 6 (HOLDING + DISSOLVING only)
    */
   const getProgress = (): { segmentIndex: number; progress: number } => {
     const now = performance.now();
     const elapsed = getModeElapsedTime(now);
 
+    // Note: currentMessageIndex increments after DISSOLVING, so during PARTICLE_LIFE/FORMING
+    // we need to use the previous message index
     let segmentIndex: number;
+    if (currentMode === AnimationMode.PARTICLE_LIFE || currentMode === AnimationMode.FORMING) {
+      segmentIndex = currentMessageIndex - 1;
+    } else {
+      segmentIndex = currentMessageIndex;
+    }
+
+    // Calculate total duration for all phases of a message
+    const holdDuration = getModeDuration(AnimationMode.HOLDING) || 0;
+    const dissolveDuration = getModeDuration(AnimationMode.DISSOLVING) || 0;
+    const particleDuration = getModeDuration(AnimationMode.PARTICLE_LIFE) || 0;
+    const formingDuration = getModeDuration(AnimationMode.FORMING) || 0;
+
+    const totalDuration = holdDuration + dissolveDuration + particleDuration + formingDuration;
+
     let segmentProgress: number;
 
-    if (currentMode === AnimationMode.HOLDING || currentMode === AnimationMode.DISSOLVING) {
-      // Message segments: 0, 2, 4, 6, 8, 10, 12
-      segmentIndex = currentMessageIndex * 2;
-
-      const holdDuration = getModeDuration(AnimationMode.HOLDING) || 0;
-      const dissolveDuration = getModeDuration(AnimationMode.DISSOLVING) || 0;
-      const totalDuration = holdDuration + dissolveDuration;
-
-      if (currentMode === AnimationMode.HOLDING) {
-        // Progress through holding phase
-        segmentProgress = elapsed / totalDuration;
-      } else {
-        // Progress through dissolving phase (add holding duration)
-        segmentProgress = (holdDuration + elapsed) / totalDuration;
-      }
+    if (currentMode === AnimationMode.HOLDING) {
+      segmentProgress = elapsed / totalDuration;
+    } else if (currentMode === AnimationMode.DISSOLVING) {
+      segmentProgress = (holdDuration + elapsed) / totalDuration;
+    } else if (currentMode === AnimationMode.PARTICLE_LIFE) {
+      segmentProgress = (holdDuration + dissolveDuration + elapsed) / totalDuration;
     } else {
-      // PARTICLE_LIFE or FORMING
-      // Particle life segments: 1, 3, 5, 7, 9, 11
-      segmentIndex = (currentMessageIndex - 1) * 2 + 1;
-
-      const particleDuration = getModeDuration(AnimationMode.PARTICLE_LIFE) || 0;
-      const formingDuration = getModeDuration(AnimationMode.FORMING) || 0;
-      const totalDuration = particleDuration + formingDuration;
-
-      if (currentMode === AnimationMode.PARTICLE_LIFE) {
-        // Progress through particle life phase
-        segmentProgress = elapsed / totalDuration;
-      } else {
-        // Progress through forming phase (add particle life duration)
-        segmentProgress = (particleDuration + elapsed) / totalDuration;
-      }
+      // FORMING
+      segmentProgress = (holdDuration + dissolveDuration + particleDuration + elapsed) / totalDuration;
     }
 
     return {
