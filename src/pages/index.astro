@@ -69,14 +69,9 @@ posts.sort((a, b) => b.data.date - a.data.date);
   const profileImg = document.getElementById('profile-img') as HTMLImageElement | null;
   const progressContainer = document.getElementById('progress-container');
 
-  // Check if this is the first visit
-  const hasSeenIntro = localStorage.getItem('hasSeenParticleIntro');
-
   if (hero && enterBtn && mainContent && particlesCanvas && heroContent && profileImg && progressContainer) {
-    // Show hero only on first visit
-    if (!hasSeenIntro) {
-      hero.classList.remove('hidden');
-    }
+    // Show hero on page load
+    hero.classList.remove('hidden');
     // Create progress bar segments: 7 messages (each includes its transition)
     const NUM_SEGMENTS = 7;
     const segments: HTMLDivElement[] = [];
@@ -104,7 +99,6 @@ posts.sort((a, b) => b.data.date - a.data.date);
       if (revealed) return;
       revealed = true;
       particleSystem?.stop();
-      localStorage.setItem('hasSeenParticleIntro', 'true');
       hero.classList.add('hero-exit');
       hero.addEventListener('animationend', () => {
         hero.classList.add('hidden');
@@ -177,23 +171,12 @@ posts.sort((a, b) => b.data.date - a.data.date);
       requestAnimationFrame(updateProgress);
     };
 
-    // Wait for Source Serif Pro bold to be loaded before starting particles (only if showing intro)
+    // Wait for Source Serif Pro bold to be loaded before starting particles
     let ready = false;
-    if (!hasSeenIntro) {
-      Promise.all([
-        document.fonts.load('400 16px "Source Serif Pro"'),
-        document.fonts.load('700 16px "Source Serif Pro"')
-      ]).then(() => {
-        particleSystem?.start();
-        updateProgress(); // Start progress bar updates
-      }).catch(() => {
-        // Fallback: use document.fonts.ready if specific loading fails
-        document.fonts.ready.then(() => {
-          particleSystem?.start();
-          updateProgress();
-        });
-      });
-    }
+    document.fonts.ready.then(() => {
+      particleSystem?.start();
+      updateProgress(); // Start progress bar updates
+    });
 
     // After 3 seconds (first message hold duration), fade out the image as particles start to dissolve
     const timer = setTimeout(() => {
