@@ -122,6 +122,34 @@ const MOUSE_REPULSION_STRENGTH = 800;  // Force strength (particles scatter from
 const CELL_SIZE = FORCE_RANGE;      // Grid cell size matches force range for optimal partitioning
 
 
+// Index of "and creative\nthings." message where balloon animation plays
+// TEMP: Set to 0 for testing on first message
+const CREATIVE_MESSAGE_INDEX = 0; // TODO: Change back to 4
+
+// Balloon animation constants
+const BALLOON = {
+  // Timing
+  riseDuration: 4,              // How long the balloon rises (seconds)
+
+  // Envelope (the balloon chute - solid filled)
+  envelopeWidth: 70,            // Width of balloon envelope (wider)
+  envelopeHeight: 75,           // Height of balloon envelope (taller)
+  envelopeOpeningRatio: 0.2,    // Width of opening at bottom relative to full width (narrow for angled ropes)
+
+  // Basket (solid filled rectangle with rounded corners)
+  basketWidth: 20,              // Width of basket (smaller)
+  basketHeight: 12,             // Height of basket (smaller)
+  basketGap: 18,                // Gap between envelope bottom and basket top (for ropes)
+  basketCornerRadius: 3,        // Rounded corner radius for basket
+  ropeExtendIntoEnvelope: 15,   // How far ropes extend up into the envelope
+
+  // Movement
+  riseDistance: 0.4,            // Rise to 40% from dot position toward top
+
+  // Particle density for filling shapes
+  fillDensity: 3,               // Pixels between particles when filling
+} as const;
+
 // Animation timing (in seconds)
 const TIMING = {
   explosion: 2,                 // Initial burst from center (unused - starts in HOLDING)
@@ -130,6 +158,8 @@ const TIMING = {
   forming: 3,                   // Particles transitioning to form text
   holding: 8,                   // Particles holding text shape
   holdingFirst: 3,              // First message hold
+  holdingCreative: 6,           // Hold time before balloon starts for "creative" message
+  balloonRising: BALLOON.riseDuration, // Balloon rises from "i" dot
   dissolving: 2,                // Text dissolving back to chaos
 } as const;
 
@@ -174,6 +204,7 @@ enum AnimationMode {
   PARTICLE_LIFE = 'PARTICLE_LIFE', // Chaotic particle life with attraction/repulsion
   FORMING = 'FORMING',           // Particles moving to form text
   HOLDING = 'HOLDING',           // Particles holding text shape
+  BALLOON_RISING = 'BALLOON_RISING', // Hot air balloon rises from "i" dot in "creative"
   DISSOLVING = 'DISSOLVING',     // Text dissolving/exploding outward
 }
 
@@ -213,6 +244,12 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   let gridCols = 0;
   let gridRows = 0;
   let gridSize = 0;
+
+  // Balloon animation state
+  let balloonParticles: Set<ParticleLife> = new Set(); // Particles forming the balloon
+  let balloonStartY = 0;          // Y position where balloon starts (the "i" dot)
+  let balloonCenterX = 0;         // X position of balloon center
+  let iDotTargets: Array<{ x: number; y: number; type: number }> = []; // Original "i" dot targets
 
   /**
    * Generate random attraction matrix defining particle behavior
@@ -406,7 +443,12 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       case AnimationMode.FORMING:
         return TIMING.forming;
       case AnimationMode.HOLDING:
-        return isFirstMessage ? TIMING.holdingFirst : TIMING.holding;
+        if (isFirstMessage) return TIMING.holdingFirst;
+        // Shorter hold for creative message before balloon
+        if (currentMessageIndex === CREATIVE_MESSAGE_INDEX) return TIMING.holdingCreative;
+        return TIMING.holding;
+      case AnimationMode.BALLOON_RISING:
+        return TIMING.balloonRising;
       case AnimationMode.DISSOLVING:
         return TIMING.dissolving;
       default:
@@ -420,6 +462,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
    * Handles mode-specific setup:
    * - FORMING: Generate text targets and assign to particles
    * - PARTICLE_LIFE: Generate new attraction matrix (during message sequence)
+   * - BALLOON_RISING: Set up balloon animation for "creative things" message
    */
   const enterMode = (mode: AnimationMode, now: number) => {
     currentMode = mode;
@@ -433,6 +476,13 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     if (mode === AnimationMode.PARTICLE_LIFE) {
       // Generate new attraction matrix for variety
       attractionMatrix = generateAttractionMatrix();
+      // Clear balloon state when entering particle life
+      balloonParticles.clear();
+    }
+
+    if (mode === AnimationMode.BALLOON_RISING) {
+      // Set up balloon animation
+      setupBalloonAnimation();
     }
   };
 
@@ -472,8 +522,12 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
         nextMode = AnimationMode.HOLDING;
         break;
       case AnimationMode.HOLDING:
-        // Only advance if we haven't shown all messages yet
-        if (currentMessageIndex < MESSAGES.length - 1) {
+        // Special case: "creative things" message triggers balloon animation
+        if (currentMessageIndex === CREATIVE_MESSAGE_INDEX) {
+          nextMode = AnimationMode.BALLOON_RISING;
+          isFirstMessage = false;
+        } else if (currentMessageIndex < MESSAGES.length - 1) {
+          // More messages to show
           nextMode = AnimationMode.DISSOLVING;
           isFirstMessage = false;
         } else {
@@ -481,6 +535,10 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
           nextMode = AnimationMode.DISSOLVING;
           isFirstMessage = false;
         }
+        break;
+      case AnimationMode.BALLOON_RISING:
+        // After balloon finishes rising, dissolve everything
+        nextMode = AnimationMode.DISSOLVING;
         break;
       case AnimationMode.DISSOLVING:
         // Increment message index and check if we're done with all messages
@@ -739,6 +797,289 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     }
   };
 
+  // =============================================================================
+  // Balloon Animation (for "creative things" message)
+  // =============================================================================
+
+  /**
+   * Find the "i" dot position in "creative" by looking for an isolated cluster
+   * above the main text body. The dot is typically a small cluster of particles
+   * above the letter stem.
+   */
+  const findIDotPosition = (): { x: number; y: number; targets: Array<{ x: number; y: number; type: number }> } | null => {
+    if (textTargets.length === 0) return null;
+
+    // For "and creative\nthings." the "i" in "creative" is on the first line
+    // Find the vertical center of line 1 (top line)
+    const sortedByY = [...textTargets].sort((a, b) => a.y - b.y);
+    const minY = sortedByY[0].y;
+    const maxY = sortedByY[sortedByY.length - 1].y;
+    const midY = (minY + maxY) / 2;
+
+    // Get only first line particles (above mid point)
+    const firstLineTargets = textTargets.filter(t => t.y < midY);
+    if (firstLineTargets.length === 0) return null;
+
+    // Find x-range of first line
+    const sortedByX = [...firstLineTargets].sort((a, b) => a.x - b.x);
+    const lineMinX = sortedByX[0].x;
+    const lineMaxX = sortedByX[sortedByX.length - 1].x;
+    const lineWidth = lineMaxX - lineMinX;
+
+    // The "i" in "creative" is roughly at position 8 out of 12 characters ("and creat[i]ve")
+    // But "and " is 4 chars, so "i" is at position 4 in "creative" which is 8 chars
+    // Estimate: about 65-75% across the first line
+    const iApproxX = lineMinX + lineWidth * 0.68;
+
+    // Find the topmost particles near the estimated "i" position (the dot)
+    // The dot should be above the baseline of letters
+    const firstLineMinY = Math.min(...firstLineTargets.map(t => t.y));
+    const firstLineMaxY = Math.max(...firstLineTargets.map(t => t.y));
+    const lineHeight = firstLineMaxY - firstLineMinY;
+
+    // Look for particles in the top 30% of the line height, near the "i" x position
+    const dotCandidates = firstLineTargets.filter(t => {
+      const isNearTop = t.y < firstLineMinY + lineHeight * 0.35;
+      const isNearIPosition = Math.abs(t.x - iApproxX) < lineWidth * 0.08;
+      return isNearTop && isNearIPosition;
+    });
+
+    if (dotCandidates.length === 0) {
+      // Fallback: just use topmost particles near center-right of first line
+      const fallbackCandidates = firstLineTargets
+        .filter(t => t.x > lineMinX + lineWidth * 0.5 && t.x < lineMinX + lineWidth * 0.85)
+        .sort((a, b) => a.y - b.y)
+        .slice(0, 20);
+
+      if (fallbackCandidates.length === 0) return null;
+
+      const avgX = fallbackCandidates.reduce((s, t) => s + t.x, 0) / fallbackCandidates.length;
+      const avgY = fallbackCandidates.reduce((s, t) => s + t.y, 0) / fallbackCandidates.length;
+      return { x: avgX, y: avgY, targets: fallbackCandidates };
+    }
+
+    // Calculate center of the dot cluster
+    const avgX = dotCandidates.reduce((s, t) => s + t.x, 0) / dotCandidates.length;
+    const avgY = dotCandidates.reduce((s, t) => s + t.y, 0) / dotCandidates.length;
+
+    return { x: avgX, y: avgY, targets: dotCandidates };
+  };
+
+  /**
+   * Draw a hot air balloon shape to an offscreen canvas and return it.
+   * The balloon is drawn at the center of the canvas.
+   */
+  const drawBalloonToCanvas = (
+    width: number,
+    height: number,
+    envelopePulse: number,
+    basketPulse: number
+  ): { canvas: HTMLCanvasElement; envCenterY: number; totalHeight: number } => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d')!;
+
+    // Canvas size with some padding
+    const padding = 20;
+    tempCanvas.width = width + padding * 2;
+    tempCanvas.height = height + padding * 2;
+
+    const centerX = tempCanvas.width / 2;
+
+    // Dimensions with pulse applied
+    const envWidth = BALLOON.envelopeWidth * envelopePulse;
+    const envHeight = BALLOON.envelopeHeight * envelopePulse;
+    const basketW = BALLOON.basketWidth * basketPulse;
+    const basketH = BALLOON.basketHeight * basketPulse;
+    const gap = BALLOON.basketGap;
+
+    // Position envelope at top, basket below
+    const envCenterY = padding + envHeight / 2;
+    const envBottom = envCenterY + envHeight / 2;
+    const basketTop = envBottom + gap;
+    const basketCenterY = basketTop + basketH / 2;
+
+    tempCtx.fillStyle = 'white';
+    tempCtx.strokeStyle = 'white';
+    tempCtx.lineWidth = 3;
+
+    // Draw envelope - a rounder balloon shape (more circular, less egg-like)
+    // Use an ellipse for the main body, then taper at the bottom
+    const envTop = envCenterY - envHeight / 2;
+
+    tempCtx.beginPath();
+    // Draw as ellipse for top 80%, then taper to narrow opening
+    const taperStartY = envCenterY + envHeight * 0.25; // where taper begins
+    const openingWidth = envWidth * BALLOON.envelopeOpeningRatio;
+
+    // Start at bottom center-left of opening
+    tempCtx.moveTo(centerX - openingWidth / 2, envBottom);
+
+    // Left side: go up from opening, curve out to full width, then curve to top
+    tempCtx.quadraticCurveTo(
+      centerX - envWidth / 2, taperStartY,  // control: full width at taper point
+      centerX - envWidth / 2, envCenterY    // end: left side at center height
+    );
+    tempCtx.quadraticCurveTo(
+      centerX - envWidth / 2, envTop,       // control: left side at top
+      centerX, envTop                        // end: top center
+    );
+
+    // Right side: mirror
+    tempCtx.quadraticCurveTo(
+      centerX + envWidth / 2, envTop,       // control: right side at top
+      centerX + envWidth / 2, envCenterY    // end: right side at center height
+    );
+    tempCtx.quadraticCurveTo(
+      centerX + envWidth / 2, taperStartY,  // control: full width at taper point
+      centerX + openingWidth / 2, envBottom // end: bottom center-right of opening
+    );
+
+    tempCtx.closePath();
+    tempCtx.fill();
+
+    // Draw ropes: \ on left, / on right
+    // They start inside the envelope (wider apart) and go down to basket (closer together)
+    const ropeTopY = envBottom - BALLOON.ropeExtendIntoEnvelope;
+    const ropeTopHalfWidth = 18;  // how far apart ropes are at the top
+    const ropeBottomHalfWidth = basketW / 2;  // ropes connect to basket edges
+
+    tempCtx.beginPath();
+    // Left rope: \ (top-left to bottom-right direction)
+    tempCtx.moveTo(centerX - ropeTopHalfWidth, ropeTopY);
+    tempCtx.lineTo(centerX - ropeBottomHalfWidth, basketTop);
+    tempCtx.stroke();
+
+    tempCtx.beginPath();
+    // Right rope: / (top-right to bottom-left direction)
+    tempCtx.moveTo(centerX + ropeTopHalfWidth, ropeTopY);
+    tempCtx.lineTo(centerX + ropeBottomHalfWidth, basketTop);
+    tempCtx.stroke();
+
+    // Draw basket (rounded rectangle)
+    tempCtx.beginPath();
+    tempCtx.roundRect(
+      centerX - basketW / 2,
+      basketTop,
+      basketW,
+      basketH,
+      BALLOON.basketCornerRadius
+    );
+    tempCtx.fill();
+
+    const totalHeight = basketTop + basketH + padding;
+
+    return { canvas: tempCanvas, envCenterY, totalHeight };
+  };
+
+  /**
+   * Generate balloon shape targets by drawing to canvas and sampling pixels.
+   * Same technique as generateTextTargets.
+   */
+  const generateBalloonTargets = (
+    centerX: number,
+    centerY: number,
+    _elapsed: number
+  ): Array<{ x: number; y: number }> => {
+    // Estimate total dimensions
+    const totalWidth = BALLOON.envelopeWidth + 40;
+    const totalHeight = BALLOON.envelopeHeight + BALLOON.basketGap + BALLOON.basketHeight + 40;
+
+    // Draw balloon to offscreen canvas (no pulsing for now)
+    const { canvas: tempCanvas, envCenterY } = drawBalloonToCanvas(
+      totalWidth,
+      totalHeight,
+      1, // envelopePulse = 1 (no pulse)
+      1  // basketPulse = 1 (no pulse)
+    );
+
+    const tempCtx = tempCanvas.getContext('2d')!;
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+    // Sample pixels where balloon is drawn
+    const targets: Array<{ x: number; y: number }> = [];
+    const density = BALLOON.fillDensity;
+
+    for (let py = 0; py < tempCanvas.height; py += density) {
+      for (let px = 0; px < tempCanvas.width; px += density) {
+        const idx = (py * tempCanvas.width + px) * 4;
+        const alpha = imageData.data[idx + 3];
+
+        if (alpha > 128) {
+          // Map canvas coordinates to world coordinates
+          // Canvas center maps to (centerX, centerY) where centerY is the envelope center
+          const worldX = centerX + (px - tempCanvas.width / 2);
+          const worldY = centerY + (py - envCenterY);
+
+          targets.push({ x: worldX, y: worldY });
+        }
+      }
+    }
+
+    return targets;
+  };
+
+  /**
+   * Set up balloon animation: find "i" dot, recruit particles, prepare targets
+   */
+  const setupBalloonAnimation = () => {
+    const dotInfo = findIDotPosition();
+    if (!dotInfo) return;
+
+    balloonCenterX = dotInfo.x;
+    balloonStartY = dotInfo.y;
+    iDotTargets = dotInfo.targets;
+
+    // Calculate how many particles we need based on balloon shape
+    // Generate a sample to count targets
+    const sampleTargets = generateBalloonTargets(balloonCenterX, balloonStartY, 0);
+    const balloonSize = Math.max(150, sampleTargets.length); // At least as many particles as targets
+
+    // Sort particles by distance to dot center - recruit nearest ones
+    const sortedByDistance = [...particles].sort((a, b) => {
+      const distA = Math.hypot(a.x - balloonCenterX, a.y - balloonStartY);
+      const distB = Math.hypot(b.x - balloonCenterX, b.y - balloonStartY);
+      return distA - distB;
+    });
+
+    balloonParticles.clear();
+    for (let i = 0; i < Math.min(balloonSize, sortedByDistance.length); i++) {
+      balloonParticles.add(sortedByDistance[i]);
+    }
+  };
+
+  /**
+   * Update balloon particle targets based on current rise progress
+   */
+  const updateBalloonTargets = (elapsed: number) => {
+    if (balloonParticles.size === 0) return;
+
+    // Calculate rise progress (0 to 1)
+    const riseProgress = Math.min(1, elapsed / TIMING.balloonRising);
+
+    // Ease out for smooth deceleration at top
+    const easedProgress = 1 - Math.pow(1 - riseProgress, 3);
+
+    // Calculate current balloon center Y (rises from dot toward top)
+    const targetY = balloonStartY * (1 - BALLOON.riseDistance * easedProgress);
+    const currentY = balloonStartY + (targetY - balloonStartY) * easedProgress;
+
+    // Generate balloon shape at current position
+    const balloonTargets = generateBalloonTargets(balloonCenterX, currentY, elapsed);
+
+    // Assign balloon targets to balloon particles
+    const balloonArray = Array.from(balloonParticles);
+    for (let i = 0; i < balloonArray.length; i++) {
+      const target = balloonTargets[i % balloonTargets.length];
+      const p = balloonArray[i];
+      p.targetX = target.x;
+      p.targetY = target.y;
+      // Vary formation speed for organic movement
+      if (!p.formationSpeed || p.formationSpeed < 0.8) {
+        p.formationSpeed = 0.8 + Math.random() * 0.4;
+      }
+    }
+  };
+
   type ModeForces = {
     formation: (elapsed: number) => number;
     particleLife: (elapsed: number, formationStrength: number) => number;
@@ -767,6 +1108,11 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     },
     [AnimationMode.HOLDING]: {
       formation: () => 1,
+      particleLife: () => 0,
+      explosion: false,
+    },
+    [AnimationMode.BALLOON_RISING]: {
+      formation: () => 1, // Keep text formed, balloon particles get special handling
       particleLife: () => 0,
       explosion: false,
     },
@@ -1060,6 +1406,12 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
     advanceMode(now);
 
+    // Update balloon targets during balloon rising animation
+    if (currentMode === AnimationMode.BALLOON_RISING) {
+      const elapsed = getModeElapsedTime(now);
+      updateBalloonTargets(elapsed);
+    }
+
     ctx.clearRect(0, 0, simWidth, simHeight);
 
     buildGrid();
@@ -1234,13 +1586,18 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
   const getTotalDurationMs = (): number => {
     // Duration until "Enjoy!" finishes holding (when arrow should be fully white)
-    // Message 0: HOLDING (3s)
-    // Cycles to form messages 1-6: 6 × (DISSOLVING 2s + PARTICLE_LIFE 10s + FORMING 3s) = 90s
-    // HOLDING for messages 1-6: 6 × 8s = 48s
-    // Total: 3 + 90 + 48 = 141s
-    const firstMessageDuration = TIMING.holdingFirst + TIMING.dissolving + TIMING.particleLife + TIMING.forming;
-    const otherMessageDuration = TIMING.holding + TIMING.dissolving + TIMING.particleLife + TIMING.forming;
-    const untilEnjoy = firstMessageDuration + otherMessageDuration * 5; // End of FORMING "Enjoy!"
+    // Message 0: HOLDING (3s) + DISSOLVING (2s) + PARTICLE_LIFE (10s) + FORMING (3s) = 18s
+    // Messages 1-3: 3 × (HOLDING 8s + DISSOLVING 2s + PARTICLE_LIFE 10s + FORMING 3s) = 69s
+    // Message 4 (creative): HOLDING (3s) + BALLOON_RISING (4s) + DISSOLVING (2s) + PARTICLE_LIFE (10s) + FORMING (3s) = 22s
+    // Message 5: HOLDING (8s) + DISSOLVING (2s) + PARTICLE_LIFE (10s) + FORMING (3s) = 23s
+    // Message 6 (Enjoy!): HOLDING (8s)
+    // Total: 18 + 69 + 22 + 23 + 8 = 140s
+    const firstMessageCycle = TIMING.holdingFirst + TIMING.dissolving + TIMING.particleLife + TIMING.forming;
+    const normalMessageCycle = TIMING.holding + TIMING.dissolving + TIMING.particleLife + TIMING.forming;
+    const creativeMessageCycle = TIMING.holdingCreative + TIMING.balloonRising + TIMING.dissolving + TIMING.particleLife + TIMING.forming;
+
+    // Messages 0, then 1-3 (normal), then 4 (creative), then 5 (normal), then 6 (just holding)
+    const untilEnjoy = firstMessageCycle + normalMessageCycle * 3 + creativeMessageCycle + normalMessageCycle;
     return (untilEnjoy + TIMING.holding) * 1000;
   };
 
