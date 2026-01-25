@@ -5,9 +5,11 @@ import Header from "../components/Header.astro";
 
 export interface Props {
 	post: CollectionEntry<'posts' | 'dreams'>;
+	previousPost?: CollectionEntry<'posts' | 'dreams'> | null;
+	nextPost?: CollectionEntry<'posts' | 'dreams'> | null;
 }
 
-const { post } = Astro.props;
+const { post, previousPost, nextPost } = Astro.props;
 const postDate = new Intl.DateTimeFormat('en-US', {
 	month: 'long',
 	day: 'numeric',
@@ -26,5 +28,26 @@ const postDate = new Intl.DateTimeFormat('en-US', {
 			<em>{post.data.summary}</em>
 		</p>
 		<slot />
+
+		{(previousPost || nextPost) && (
+			<nav class="flex justify-between items-center mt-12 pt-8 border-t not-prose">
+				<div class="flex-1">
+					{previousPost && (
+						<a href={`/posts/${previousPost.slug}`} class="group flex flex-col items-start">
+							<span class="text-sm text-gray-500">← Previous</span>
+							<span class="text-gray-400 group-hover:text-gray-600 transition-colors">{previousPost.data.title}</span>
+						</a>
+					)}
+				</div>
+				<div class="flex-1 text-right">
+					{nextPost && (
+						<a href={`/posts/${nextPost.slug}`} class="group flex flex-col items-end">
+							<span class="text-sm text-gray-500">Next →</span>
+							<span class="text-gray-400 group-hover:text-gray-600 transition-colors">{nextPost.data.title}</span>
+						</a>
+					)}
+				</div>
+			</nav>
+		)}
 	</article>
 </Layout>

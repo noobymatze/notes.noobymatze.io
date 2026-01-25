@@ -7,14 +7,24 @@ export async function getStaticPaths() {
         import.meta.env.PROD ? !post.data.draft : true
     );
 
-    return blogEntries.map(entry => ({
-        params: { slug: entry.slug }, props: { entry },
+    // Sort by date descending (newest first)
+    const sortedEntries = blogEntries.sort((a, b) =>
+        b.data.date.getTime() - a.data.date.getTime()
+    );
+
+    return sortedEntries.map((entry, index) => ({
+        params: { slug: entry.slug },
+        props: {
+            entry,
+            previousPost: index < sortedEntries.length - 1 ? sortedEntries[index + 1] : null,
+            nextPost: index > 0 ? sortedEntries[index - 1] : null,
+        },
     }));
 }
 
-const { entry } = Astro.props;
+const { entry, previousPost, nextPost } = Astro.props;
 const { Content } = await entry.render();
 ---
-<PostLayout post={entry}>
+<PostLayout post={entry} previousPost={previousPost} nextPost={nextPost}>
     <Content />
 </PostLayout>
