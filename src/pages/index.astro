@@ -81,15 +81,21 @@ posts.sort((a, b) => b.data.date - a.data.date);
       hero.dataset.state = state;
     };
 
-    const updateProgress = () => {
+    const updateProgress = (now: DOMHighResTimeStamp) => {
       if (!particleSystem || hero.dataset.state === 'revealing') return;
 
-      const progress = particleSystem.getProgress();
+      const progress = particleSystem.getProgress(now);
       progressStop.setAttribute('offset', `${progress * 100}%`);
 
-      // When complete, mark as ready
-      if (particleSystem.isReady() && hero.dataset.state !== 'ready') {
+      // When complete, mark as ready and stop progress updates
+      if (particleSystem.isReady(now) && hero.dataset.state !== 'ready') {
         setState('ready');
+        // Stop the progress animation loop since we're done
+        if (progressRafId !== null) {
+          cancelAnimationFrame(progressRafId);
+          progressRafId = null;
+        }
+        return;
       }
 
       progressRafId = requestAnimationFrame(updateProgress);

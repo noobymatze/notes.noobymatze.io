@@ -187,7 +187,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
   const particles: ParticleLife[] = [];
   let animationId: number | null = null;
-  let lastTime = performance.now();
+  let lastTime = 0;
 
   // Animation state
   let currentMode: AnimationMode = AnimationMode.EXPLOSION;
@@ -1034,8 +1034,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
    * 5. Update all particles
    * 6. Draw all particles
    */
-  const render = () => {
-    const now = performance.now();
+  const render = (now: DOMHighResTimeStamp) => {
 
     if (document.hidden) {
       if (!isPaused) {
@@ -1118,6 +1117,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
   /**
    * Handle page visibility changes to pause/resume animation timing
+   * Note: We need performance.now() here since this runs outside RAF callback
    */
   const handleVisibilityChange = () => {
     if (document.hidden) {
@@ -1192,6 +1192,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     }
 
     // Start in HOLDING mode showing first message
+    // Note: Need performance.now() here to initialize timing before first RAF callback
     const now = performance.now();
     lastTime = now;
     animationStartTime = now; // Track when entire animation begins
@@ -1199,7 +1200,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     isFirstMessage = true;
     enterMode(AnimationMode.HOLDING, now);
 
-    render();
+    requestAnimationFrame(render);
   };
 
   /**
@@ -1226,8 +1227,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
    * Get current overall progress (0-1) across all 7 messages
    * Progress reaches 1.0 (100%) right after "Enjoy!" finishes HOLDING
    */
-  const getElapsedMs = (): number => {
-    const now = performance.now();
+  const getElapsedMs = (now: DOMHighResTimeStamp): number => {
     const currentPausedTime = isPaused ? (pausedTime + (now - lastPauseStart)) : pausedTime;
     return now - animationStartTime - currentPausedTime;
   };
@@ -1244,13 +1244,13 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     return (untilEnjoy + TIMING.holding) * 1000;
   };
 
-  const getProgress = (): number => {
+  const getProgress = (now: DOMHighResTimeStamp): number => {
     const totalDuration = getTotalDurationMs();
-    return Math.min(1, getElapsedMs() / totalDuration);
+    return Math.min(1, getElapsedMs(now) / totalDuration);
   };
 
-  const isReady = (): boolean => {
-    return getElapsedMs() >= getTotalDurationMs();
+  const isReady = (now: DOMHighResTimeStamp): boolean => {
+    return getElapsedMs(now) >= getTotalDurationMs();
   };
 
   return { start, stop, resize, getProgress, isReady };
