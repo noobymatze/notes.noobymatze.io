@@ -15,31 +15,35 @@ posts.sort((a, b) => b.data.date - a.data.date);
   <Header sticky={true} showReplay={true}/>
   <section
     id="hero"
-    class="fixed inset-0 z-50 flex flex-col items-center justify-center hero-bg hidden"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center hero-bg hidden transition-transform duration-[600ms] ease-in-out"
+    data-state="loading"
     aria-label="Hi there, I am Matthias"
   >
-    <!-- Progress bar segments -->
-    <div id="progress-container" class="absolute top-4 left-4 right-4 z-10 flex gap-1 opacity-40 transition-opacity duration-500">
-      <!-- Will be populated with segments via JS -->
-    </div>
-
     <canvas id="particles-canvas" class="absolute inset-0 w-full h-full z-0" aria-hidden="true"></canvas>
     <div id="hero-content" class="flex flex-col items-center gap-8 p-4 relative z-10" style="transform: translateY(-220px);">
       <img
         id="profile-img"
         src="/me.jpg"
         alt="Matthias"
-        class="w-32 h-32 md:w-40 md:h-40 rounded-full object-cover profile-glow"
+        class="w-32 h-32 md:w-40 md:h-40 rounded-full object-cover profile-glow hero-image"
       />
     </div>
 
     <button
       id="enter-btn"
-      class="absolute bottom-12 p-2 rounded-full text-white/20 bg-transparent border-none cursor-pointer enter-btn hover:text-white hover:bg-white/10 focus:outline-2 focus:outline-white focus:outline-offset-4 transition-colors duration-300"
+      class="absolute bottom-12 p-2 rounded-full bg-transparent border-none cursor-pointer enter-btn hover:text-white hover:bg-white/10 focus:outline-2 focus:outline-white focus:outline-offset-4 transition-colors duration-300"
       aria-label="Enter site"
     >
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 5v14M5 12l7 7 7-7"/>
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <defs>
+          <linearGradient id="arrow-progress" x1="0" y1="5" x2="0" y2="19" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="white" />
+            <stop id="progress-stop" offset="0%" stop-color="white" />
+            <stop offset="0%" stop-color="currentColor" />
+            <stop offset="100%" stop-color="currentColor" />
+          </linearGradient>
+        </defs>
+        <path d="M12 5v14M5 12l7 7 7-7" stroke="url(#arrow-progress)"/>
       </svg>
     </button>
   </section>
@@ -65,137 +69,76 @@ posts.sort((a, b) => b.data.date - a.data.date);
   const enterBtn = document.getElementById('enter-btn');
   const mainContent = document.getElementById('main-content');
   const particlesCanvas = document.getElementById('particles-canvas') as HTMLCanvasElement | null;
-  const heroContent = document.getElementById('hero-content') as HTMLElement | null;
-  const profileImg = document.getElementById('profile-img') as HTMLImageElement | null;
-  const progressContainer = document.getElementById('progress-container');
+  const progressStop = document.getElementById('progress-stop') as SVGStopElement | null;
 
-  if (hero && enterBtn && mainContent && particlesCanvas && heroContent && profileImg && progressContainer) {
-    // Show hero on page load
-    hero.classList.remove('hidden');
-    // Create progress bar segments: 7 messages (each includes its transition)
-    const NUM_SEGMENTS = 7;
-    const segments: HTMLDivElement[] = [];
-    const segmentFills: HTMLDivElement[] = [];
-
-    for (let i = 0; i < NUM_SEGMENTS; i++) {
-      const segment = document.createElement('div');
-      segment.className = 'flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden';
-
-      const fill = document.createElement('div');
-      fill.className = 'h-full bg-white/60 rounded-full';
-      fill.style.width = '0%';
-      fill.style.transformOrigin = 'left';
-      fill.style.transition = 'none';
-
-      segment.appendChild(fill);
-      progressContainer.appendChild(segment);
-      segments.push(segment);
-      segmentFills.push(fill);
-    }
-    let revealed = false;
+  if (hero && enterBtn && mainContent && particlesCanvas && progressStop) {
     const particleSystem = createParticleLifeSystem(particlesCanvas);
+    let canReveal = false;
+    let progressRafId: number | null = null;
+
+    const setState = (state: 'loading' | 'ready' | 'revealing' | 'hidden') => {
+      hero.dataset.state = state;
+    };
+
+    const updateProgress = () => {
+      if (!particleSystem || hero.dataset.state === 'revealing') return;
+
+      const progress = particleSystem.getProgress();
+      progressStop.setAttribute('offset', `${progress * 100}%`);
+
+      // When complete, mark as ready
+      if (particleSystem.isReady() && hero.dataset.state !== 'ready') {
+        setState('ready');
+      }
+
+      progressRafId = requestAnimationFrame(updateProgress);
+    };
 
     const reveal = () => {
-      if (revealed) return;
-      revealed = true;
+      if (!canReveal) return;
+
+      setState('revealing');
+      if (progressRafId !== null) {
+        cancelAnimationFrame(progressRafId);
+        progressRafId = null;
+      }
       particleSystem?.stop();
-      hero.classList.add('hero-exit');
-      hero.addEventListener('animationend', () => {
+
+      hero.addEventListener('transitionend', () => {
         hero.classList.add('hidden');
-        hero.classList.remove('hero-exit');
         mainContent.focus();
         cleanup();
       }, { once: true });
     };
 
-    const showHero = () => {
-      // Reset state
-      revealed = false;
-      lastSegmentIndex = -1;
+    const startHero = () => {
+      canReveal = false;
+      setState('loading');
       hero.classList.remove('hidden');
-      hero.style.display = '';
-      progressContainer.style.opacity = '0.4';
+      progressStop.setAttribute('offset', '0%');
 
-      // Reset progress bars
-      segmentFills.forEach(fill => {
-        fill.style.width = '0%';
-      });
-
-      // Reset profile image
-      if (profileImg) {
-        profileImg.style.opacity = '1';
-      }
-
-      // Start particle system
       particleSystem?.start();
+      if (progressRafId !== null) {
+        cancelAnimationFrame(progressRafId);
+      }
       updateProgress();
 
-      // Fade out image after 3s
+      // Allow user interaction after 3 seconds
       setTimeout(() => {
-        if (profileImg) {
-          profileImg.style.transition = 'opacity 1s ease-out';
-          profileImg.style.opacity = '0';
-        }
+        canReveal = true;
       }, 3000);
     };
 
-    // Track last segment index to avoid re-animating completed segments
-    let lastSegmentIndex = -1;
+    // Initialize on font load
+    document.fonts.ready.then(startHero);
 
-    // Update progress bar
-    const updateProgress = () => {
-      if (!particleSystem || revealed) return;
-
-      const { segmentIndex, progress } = particleSystem.getProgress();
-
-      // When moving to a new segment, lock the previous segment at 100%
-      if (segmentIndex !== lastSegmentIndex && lastSegmentIndex >= 0 && lastSegmentIndex < NUM_SEGMENTS) {
-        segmentFills[lastSegmentIndex].style.width = '100%';
-        lastSegmentIndex = segmentIndex;
-      }
-
-      if (lastSegmentIndex === -1) {
-        lastSegmentIndex = segmentIndex;
-      }
-
-      // Update current segment based on progress (don't touch previous/future segments)
-      if (segmentIndex < NUM_SEGMENTS) {
-        segmentFills[segmentIndex].style.width = `${progress * 100}%`;
-      }
-
-      // When all segments are complete, fade out the progress bar
-      if (segmentIndex >= NUM_SEGMENTS - 1 && progress >= 0.99) {
-        progressContainer.style.opacity = '0';
-      }
-
-      requestAnimationFrame(updateProgress);
-    };
-
-    // Wait for Source Serif Pro bold to be loaded before starting particles
-    let ready = false;
-    document.fonts.ready.then(() => {
-      particleSystem?.start();
-      updateProgress(); // Start progress bar updates
-    });
-
-    // After 3 seconds (first message hold duration), fade out the image as particles start to dissolve
-    const timer = setTimeout(() => {
-      if (profileImg) {
-        profileImg.style.transition = 'opacity 1s ease-out';
-        profileImg.style.opacity = '0';
-      }
-      ready = true;
-    }, 3000);
-
-    const onWheel = (e: WheelEvent) => { if (ready && e.deltaY > 0) reveal(); };
-    const onKey = (e: KeyboardEvent) => { if (ready && ['ArrowDown', 'PageDown', ' '].includes(e.key)) reveal(); };
+    // Event handlers
+    const onWheel = (e: WheelEvent) => { if (e.deltaY > 0) reveal(); };
+    const onKey = (e: KeyboardEvent) => { if (['ArrowDown', 'PageDown', ' '].includes(e.key)) reveal(); };
     let touchY = 0;
     const onTouchStart = (e: TouchEvent) => { touchY = e.touches[0].clientY; };
-    const onTouchEnd = (e: TouchEvent) => { if (ready && touchY - e.changedTouches[0].clientY > 50) reveal(); };
-
-    const onResize = () => {
-      particleSystem?.resize();
-    };
+    const onTouchEnd = (e: TouchEvent) => { if (touchY - e.changedTouches[0].clientY > 50) reveal(); };
+    const onResize = () => particleSystem?.resize();
 
     enterBtn.addEventListener('click', reveal);
     window.addEventListener('wheel', onWheel, { passive: true });
@@ -205,27 +148,61 @@ posts.sort((a, b) => b.data.date - a.data.date);
     window.addEventListener('resize', onResize);
 
     const cleanup = () => {
-      clearTimeout(timer);
       window.removeEventListener('wheel', onWheel);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('resize', onResize);
+      if (progressRafId !== null) {
+        cancelAnimationFrame(progressRafId);
+        progressRafId = null;
+      }
     };
 
-    // Handle replay button click
+    // Handle replay button
     const replayBtn = document.getElementById('replay-particles-btn');
-    if (replayBtn) {
-      replayBtn.addEventListener('click', showHero);
-    }
+    replayBtn?.addEventListener('click', startHero);
   }
 </script>
 
 <style>
-  .hero-bg { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%); }
-  .profile-glow { box-shadow: 0 0 60px rgba(124, 58, 237, 0.3); }
-  .hero-exit { animation: slideUp 0.6s ease-in-out forwards; }
-  @keyframes slideUp { to { transform: translateY(-100%); } }
+  .hero-bg {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  }
+
+  .profile-glow {
+    box-shadow: 0 0 60px rgba(124, 58, 237, 0.3);
+  }
+
+  /* Hero states */
+  #hero[data-state="revealing"] {
+    transform: translateY(-100%);
+  }
+
+  /* Image fades out after 3 seconds */
+  .hero-image {
+    animation: fadeOut 1s ease-out 3s forwards;
+  }
+
+  @keyframes fadeOut {
+    to { opacity: 0; }
+  }
+
+  /* Button states based on hero state */
+  #hero[data-state="loading"] .enter-btn,
+  #hero[data-state="ready"] .enter-btn {
+    color: rgba(255, 255, 255, 0.2);
+  }
+
+  #hero[data-state="ready"] .enter-btn {
+    color: white;
+    animation: bounce 1.5s ease-in-out 0.5s infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(10px); }
+  }
 
   @media (max-width: 768px) {
     #hero-content {
@@ -233,13 +210,9 @@ posts.sort((a, b) => b.data.date - a.data.date);
     }
   }
 
-  .enter-btn {
-    animation: bounce 1.5s ease-in-out 0.5s infinite;
-  }
-  @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
-
   @media (prefers-reduced-motion: reduce) {
-    .enter-btn { animation: none; opacity: 1; }
-    .hero-exit { animation: none; display: none; }
+    .hero-image { animation: none; opacity: 1; }
+    #hero[data-state="ready"] .enter-btn { animation: none; }
+    #hero { transition: none; }
   }
 </style>

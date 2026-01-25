@@ -1,21 +1,25 @@
 /**
  * Particle Life System
  *
+ * Note: This is "AI slop". I haven't touched this code once myself, except
+ * for writing this message and I don't intend to. I was fully satisfied with
+ * the outcome here. My goal was the creative endeavour.
+ *
  * An artificial life simulation where particles interact based on attraction/repulsion rules,
  * creating emergent organic behaviors. The system cycles through introduction messages, then
  * enters an infinite particle life mode with evolving behavior patterns.
  *
  * ## Animation Flow:
  *
- * 1. **Introduction Sequence** (one-time, ~90s total):
+ * 1. **Introduction Sequence** (one-time, ~141s total):
  *    - HOLDING (3s): Show first message "Hi there, I am Matthias"
  *    - DISSOLVING (2s) → PARTICLE_LIFE (10s) → FORMING (3s)
- *    - HOLDING (8s): Show "a software developer"
+ *    - HOLDING (8s): Show "software developer"
  *    - ... repeats for all 7 introduction messages ...
  *
  * 2. **Infinite Particle Life** (after all messages shown):
- *    - PARTICLE_LIFE mode runs forever (15s cycles)
- *    - New attraction matrix generated every 15s for variety
+ *    - PARTICLE_LIFE mode runs forever (20s cycles)
+ *    - New attraction matrix generated every 20s for variety
  *    - Creates endless evolving organic patterns
  *
  * ## Particle Life Physics:
@@ -119,26 +123,26 @@ const CELL_SIZE = FORCE_RANGE;      // Grid cell size matches force range for op
 
 
 // Animation timing (in seconds)
-const EXPLOSION_DURATION = 2;      // Initial burst from center (unused - starts in HOLDING)
-const PARTICLE_LIFE_DURATION = 10; // Chaotic particle life between messages (or infinite after all messages)
-const FORMING_DURATION = 3;        // Particles transitioning to form text
-const HOLDING_DURATION = 8;        // Particles holding text shape (3s for first message)
-const DISSOLVE_DURATION = 2;       // Text dissolving back to chaos
+const TIMING = {
+  explosion: 2,                 // Initial burst from center (unused - starts in HOLDING)
+  particleLife: 10,             // Chaotic particle life between messages
+  particleLifeInfinite: 20,     // Particle life cycle after all messages
+  forming: 3,                   // Particles transitioning to form text
+  holding: 8,                   // Particles holding text shape
+  holdingFirst: 3,              // First message hold
+  dissolving: 2,                // Text dissolving back to chaos
+} as const;
 
 // Introduction messages (shown once in sequence)
 const MESSAGES = [
   "Hi there,\nI am Matthias",
-  "a software\ndeveloper",
+  "a software\ndeveloper,",
   "a bikepacker\n🚲",
   "who likes\nBadminton 🏸",
   "and creative\nthings.",
   "These are\nmy notes.",
   "Enjoy!"
 ];
-
-// Text rendering constants
-const LETTER_SPACING = 40;        // Horizontal spacing between characters (unused - relies on font kerning)
-const TEXT_SAMPLE_DENSITY = 3;    // Default pixel spacing between samples (overridden by responsive density)
 
 // Responsive font sizing
 const getResponsiveFontSize = (canvasWidth: number, canvasHeight: number): number => {
@@ -188,8 +192,11 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   // Animation state
   let currentMode: AnimationMode = AnimationMode.EXPLOSION;
   let modeStartTime = 0;
+  let animationStartTime = 0; // Track when entire animation sequence began
+  let pausedTime = 0; // Accumulated time while paused (tab hidden)
+  let lastPauseStart = 0; // When the current pause started
+  let isPaused = false; // Whether animation is currently paused
   let textTargets: Array<{ x: number; y: number; type: number }> = [];
-  let imageTargets: Array<{ x: number; y: number; type: number }> = [];
   let currentMessageIndex = 0;
   let isFirstMessage = true;
   let simWidth = 0;
@@ -392,15 +399,16 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   const getModeDuration = (mode: AnimationMode): number | null => {
     switch (mode) {
       case AnimationMode.EXPLOSION:
-        return EXPLOSION_DURATION;
+        return TIMING.explosion;
       case AnimationMode.PARTICLE_LIFE:
-        return PARTICLE_LIFE_DURATION;
+        // During intro: 10s, after all messages: 20s for infinite mode
+        return currentMessageIndex >= MESSAGES.length ? TIMING.particleLifeInfinite : TIMING.particleLife;
       case AnimationMode.FORMING:
-        return FORMING_DURATION;
+        return TIMING.forming;
       case AnimationMode.HOLDING:
-        return isFirstMessage ? 3 : HOLDING_DURATION;
+        return isFirstMessage ? TIMING.holdingFirst : TIMING.holding;
       case AnimationMode.DISSOLVING:
-        return DISSOLVE_DURATION;
+        return TIMING.dissolving;
       default:
         return null;
     }
@@ -417,13 +425,13 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     currentMode = mode;
     modeStartTime = now;
 
-    if (mode === AnimationMode.FORMING) {
+    if (mode === AnimationMode.FORMING && currentMessageIndex < MESSAGES.length) {
       generateTextTargets(MESSAGES[currentMessageIndex]);
       assignTargetsToParticles();
     }
 
-    if (mode === AnimationMode.PARTICLE_LIFE && currentMessageIndex < MESSAGES.length) {
-      // New behavior profile per message cycle (before final state)
+    if (mode === AnimationMode.PARTICLE_LIFE) {
+      // Generate new attraction matrix for variety
       attractionMatrix = generateAttractionMatrix();
     }
   };
@@ -433,7 +441,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
    *
    * Flow logic:
    * - Messages 0-6: HOLDING → DISSOLVING → PARTICLE_LIFE → FORMING → HOLDING (next message)
-   * - After message 6: DISSOLVING → PARTICLE_LIFE (infinite with matrix regeneration every 15s)
+   * - After message 6: DISSOLVING → PARTICLE_LIFE (infinite with matrix regeneration every 20s)
    */
   const advanceMode = (now: number) => {
     const duration = getModeDuration(currentMode);
@@ -449,25 +457,41 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
         break;
       case AnimationMode.PARTICLE_LIFE:
         if (currentMessageIndex < MESSAGES.length) {
-          // Still have messages to show
+          // Still have messages to show - transition to forming the next message
           nextMode = AnimationMode.FORMING;
         } else {
           // All messages shown - stay in particle life forever
-          // Generate new matrix every 15s for evolving behavior
+          // Just regenerate matrix and reset timer (don't change mode)
           attractionMatrix = generateAttractionMatrix();
           modeStartTime = now;
+          // Explicitly do NOT set nextMode - stay in PARTICLE_LIFE
+          nextMode = null;
         }
         break;
       case AnimationMode.FORMING:
         nextMode = AnimationMode.HOLDING;
         break;
       case AnimationMode.HOLDING:
-        nextMode = AnimationMode.DISSOLVING;
-        isFirstMessage = false;
+        // Only advance if we haven't shown all messages yet
+        if (currentMessageIndex < MESSAGES.length - 1) {
+          nextMode = AnimationMode.DISSOLVING;
+          isFirstMessage = false;
+        } else {
+          // Last message - go to infinite particle life after dissolving
+          nextMode = AnimationMode.DISSOLVING;
+          isFirstMessage = false;
+        }
         break;
       case AnimationMode.DISSOLVING:
+        // Increment message index and check if we're done with all messages
         currentMessageIndex = currentMessageIndex + 1;
-        nextMode = AnimationMode.PARTICLE_LIFE;
+        if (currentMessageIndex < MESSAGES.length) {
+          // More messages to show
+          nextMode = AnimationMode.PARTICLE_LIFE;
+        } else {
+          // All messages shown - enter infinite particle life mode
+          nextMode = AnimationMode.PARTICLE_LIFE;
+        }
         break;
     }
 
@@ -555,6 +579,15 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
    * 2. Within range (< 80px): F = attraction[i][j] × (1 - d/range) × strength
    * 3. Far away (> 80px): No interaction
    *
+   * Force magnitude sketch (signed):
+   *   ^
+   *   |  repulse     attract/repel (linear)        0
+   *   |   /\               \                       |
+   *   |  /  \               \                      |
+   *   +--|---|----------------\--------------------+--> d
+   *      r0  |                 R
+   *          r0 = REPULSION_RANGE, R = FORCE_RANGE
+   *
    * @returns Force vector {fx, fy} to apply to p1
    */
   const calculateForce = (p1: ParticleLife, p2: ParticleLife): { fx: number; fy: number } => {
@@ -563,6 +596,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     const distSq = dx * dx + dy * dy;
 
     if (distSq < 0.01) return { fx: 0, fy: 0 };
+    if (distSq > FORCE_RANGE * FORCE_RANGE) return { fx: 0, fy: 0 };
 
     const dist = Math.sqrt(distSq);
 
@@ -574,9 +608,6 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
         fy: -(dy / dist) * repulsionForce,
       };
     }
-
-    // Beyond interaction range: no force
-    if (dist > FORCE_RANGE) return { fx: 0, fy: 0 };
 
     // ATTRACTION/REPULSION: Look up how p1's type feels about p2's type
     const attraction = attractionMatrix[p1.type][p2.type];
@@ -727,7 +758,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     },
     [AnimationMode.FORMING]: {
       formation: (elapsed) => {
-        const formProgress = elapsed / FORMING_DURATION;
+        const formProgress = elapsed / TIMING.forming;
         const eased = Math.min(1, formProgress * formProgress);
         return Math.max(0, eased);
       },
@@ -740,7 +771,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       explosion: false,
     },
     [AnimationMode.DISSOLVING]: {
-      formation: (elapsed) => Math.max(0, 1 - elapsed / DISSOLVE_DURATION),
+      formation: (elapsed) => Math.max(0, 1 - elapsed / TIMING.dissolving),
       particleLife: () => 0,
       explosion: true,
     },
@@ -761,7 +792,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
 
       if (dist < 1) return { fx: 0, fy: 0 };
 
-      const progress = elapsed / EXPLOSION_DURATION;
+      const progress = elapsed / TIMING.explosion;
       const strength = 3000 * (1 - progress);
 
       return {
@@ -789,7 +820,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
         };
       }
 
-      const progress = elapsed / DISSOLVE_DURATION;
+      const progress = elapsed / TIMING.dissolving;
       const strength = 6000 * Math.max(0, 1 - progress);
 
       return {
@@ -973,14 +1004,35 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   /**
    * Main render loop - runs every frame via requestAnimationFrame
    *
-   * 1. Check for mode transitions
-   * 2. Clear canvas
-   * 3. Build spatial grid
-   * 4. Update all particles
-   * 5. Draw all particles
+   * 1. Handle pause/resume
+   * 2. Check for mode transitions
+   * 3. Clear canvas
+   * 4. Build spatial grid
+   * 5. Update all particles
+   * 6. Draw all particles
    */
   const render = () => {
     const now = performance.now();
+
+    if (document.hidden) {
+      if (!isPaused) {
+        isPaused = true;
+        lastPauseStart = now;
+      }
+      animationId = requestAnimationFrame(render);
+      return;
+    }
+
+    // If we were paused and now resuming, accumulate the paused time
+    if (isPaused) {
+      const pausedDuration = now - lastPauseStart;
+      pausedTime += pausedDuration;
+      modeStartTime += pausedDuration;
+      animationStartTime += pausedDuration;
+      lastTime += pausedDuration;
+      isPaused = false;
+    }
+
     const dt = Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
@@ -1042,6 +1094,18 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   };
 
   /**
+   * Handle page visibility changes to pause/resume animation timing
+   */
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      // Tab hidden - mark as paused and record when
+      isPaused = true;
+      lastPauseStart = performance.now();
+    }
+    // When tab becomes visible again, the render loop will handle resuming
+  };
+
+  /**
    * Start the particle system
    *
    * 1. Set up event listeners for mouse/touch interaction
@@ -1057,6 +1121,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
     canvas.addEventListener('touchend', handleTouchEnd);
     canvas.addEventListener('touchcancel', handleTouchEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Wait for layout to settle before measuring canvas and generating text
     requestAnimationFrame(() => {
@@ -1106,6 +1171,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     // Start in HOLDING mode showing first message
     const now = performance.now();
     lastTime = now;
+    animationStartTime = now; // Track when entire animation begins
     currentMessageIndex = 0;
     isFirstMessage = true;
     enterMode(AnimationMode.HOLDING, now);
@@ -1128,65 +1194,41 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     canvas.removeEventListener('touchmove', handleTouchMove);
     canvas.removeEventListener('touchend', handleTouchEnd);
     canvas.removeEventListener('touchcancel', handleTouchEnd);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
 
     ctx.clearRect(0, 0, simWidth, simHeight);
   };
 
   /**
-   * Get current progress information for progress bar
-   * Maps to 7 segments (one per message):
-   * - Segment 0: Message 0 (HOLDING + DISSOLVING + PARTICLE_LIFE + FORMING)
-   * - Segment 1: Message 1 (HOLDING + DISSOLVING + PARTICLE_LIFE + FORMING)
-   * ...
-   * - Segment 6: Message 6 (HOLDING + DISSOLVING only)
+   * Get current overall progress (0-1) across all 7 messages
+   * Progress reaches 1.0 (100%) right after "Enjoy!" finishes HOLDING
    */
-  const getProgress = (): { segmentIndex: number; progress: number } => {
+  const getElapsedMs = (): number => {
     const now = performance.now();
-    const elapsed = getModeElapsedTime(now);
-
-    // If we're past all messages (infinite particle life mode), return completed state
-    if (currentMessageIndex >= MESSAGES.length) {
-      return {
-        segmentIndex: MESSAGES.length - 1,
-        progress: 1,
-      };
-    }
-
-    // Note: currentMessageIndex increments after DISSOLVING, so during PARTICLE_LIFE/FORMING
-    // we need to use the previous message index
-    let segmentIndex: number;
-    if (currentMode === AnimationMode.PARTICLE_LIFE || currentMode === AnimationMode.FORMING) {
-      segmentIndex = currentMessageIndex - 1;
-    } else {
-      segmentIndex = currentMessageIndex;
-    }
-
-    // Calculate total duration for all phases of a message
-    const holdDuration = getModeDuration(AnimationMode.HOLDING) || 0;
-    const dissolveDuration = getModeDuration(AnimationMode.DISSOLVING) || 0;
-    const particleDuration = getModeDuration(AnimationMode.PARTICLE_LIFE) || 0;
-    const formingDuration = getModeDuration(AnimationMode.FORMING) || 0;
-
-    const totalDuration = holdDuration + dissolveDuration + particleDuration + formingDuration;
-
-    let segmentProgress: number;
-
-    if (currentMode === AnimationMode.HOLDING) {
-      segmentProgress = elapsed / totalDuration;
-    } else if (currentMode === AnimationMode.DISSOLVING) {
-      segmentProgress = (holdDuration + elapsed) / totalDuration;
-    } else if (currentMode === AnimationMode.PARTICLE_LIFE) {
-      segmentProgress = (holdDuration + dissolveDuration + elapsed) / totalDuration;
-    } else {
-      // FORMING
-      segmentProgress = (holdDuration + dissolveDuration + particleDuration + elapsed) / totalDuration;
-    }
-
-    return {
-      segmentIndex: Math.max(0, segmentIndex),
-      progress: Math.min(1, segmentProgress),
-    };
+    const currentPausedTime = isPaused ? (pausedTime + (now - lastPauseStart)) : pausedTime;
+    return now - animationStartTime - currentPausedTime;
   };
 
-  return { start, stop, resize, getProgress };
+  const getTotalDurationMs = (): number => {
+    // Duration until "Enjoy!" finishes holding (when arrow should be fully white)
+    // Message 0: HOLDING (3s)
+    // Cycles to form messages 1-6: 6 × (DISSOLVING 2s + PARTICLE_LIFE 10s + FORMING 3s) = 90s
+    // HOLDING for messages 1-6: 6 × 8s = 48s
+    // Total: 3 + 90 + 48 = 141s
+    const firstMessageDuration = TIMING.holdingFirst + TIMING.dissolving + TIMING.particleLife + TIMING.forming;
+    const otherMessageDuration = TIMING.holding + TIMING.dissolving + TIMING.particleLife + TIMING.forming;
+    const untilEnjoy = firstMessageDuration + otherMessageDuration * 5; // End of FORMING "Enjoy!"
+    return (untilEnjoy + TIMING.holding) * 1000;
+  };
+
+  const getProgress = (): number => {
+    const totalDuration = getTotalDurationMs();
+    return Math.min(1, getElapsedMs() / totalDuration);
+  };
+
+  const isReady = (): boolean => {
+    return getElapsedMs() >= getTotalDurationMs();
+  };
+
+  return { start, stop, resize, getProgress, isReady };
 }
