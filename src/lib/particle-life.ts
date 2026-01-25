@@ -782,6 +782,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
    *
    * Distributes target positions cyclically if there are more particles than targets.
    * Each particle also gets a random formation speed for organic arrival timing.
+   * Particle colors are preserved (not overwritten) for smooth transitions.
    */
   const assignTargetsToParticles = (targets: Array<{ x: number; y: number; type: number }> = textTargets) => {
     if (targets.length === 0) return;
@@ -791,7 +792,6 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
       const target = targets[i % targets.length];
       particles[i].targetX = target.x;
       particles[i].targetY = target.y;
-      particles[i].type = target.type;
       // Assign random speed for organic formation (0.5x to 1.5x base speed)
       particles[i].formationSpeed = 0.5 + Math.random();
     }
