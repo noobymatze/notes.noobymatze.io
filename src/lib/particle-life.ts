@@ -123,8 +123,7 @@ const CELL_SIZE = FORCE_RANGE;      // Grid cell size matches force range for op
 
 
 // Index of "and creative\nthings." message where balloon animation plays
-// TEMP: Set to 0 for testing on first message
-const CREATIVE_MESSAGE_INDEX = 0; // TODO: Change back to 4
+const CREATIVE_MESSAGE_INDEX = 4;
 
 // Balloon animation constants
 const BALLOON = {
@@ -250,6 +249,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   let balloonStartY = 0;          // Y position where balloon starts (the "i" dot)
   let balloonCenterX = 0;         // X position of balloon center
   let iDotTargets: Array<{ x: number; y: number; type: number }> = []; // Original "i" dot targets
+  let cachedBalloonOffsets: Array<{ dx: number; dy: number }> = []; // Cached balloon shape as offsets from center
 
   /**
    * Generate random attraction matrix defining particle behavior
@@ -1029,10 +1029,12 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     balloonStartY = dotInfo.y;
     iDotTargets = dotInfo.targets;
 
-    // Calculate how many particles we need based on balloon shape
-    // Generate a sample to count targets
-    const sampleTargets = generateBalloonTargets(balloonCenterX, balloonStartY, 0);
-    const balloonSize = Math.max(150, sampleTargets.length); // At least as many particles as targets
+    // Generate balloon shape ONCE and cache as offsets from center
+    // This prevents particle position flickering during flight
+    const balloonTargets = generateBalloonTargets(0, 0, 0); // Generate at origin
+    cachedBalloonOffsets = balloonTargets.map(t => ({ dx: t.x, dy: t.y }));
+
+    const balloonSize = Math.max(150, cachedBalloonOffsets.length);
 
     // Sort particles by distance to dot center - recruit nearest ones
     const sortedByDistance = [...particles].sort((a, b) => {
@@ -1045,13 +1047,20 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     for (let i = 0; i < Math.min(balloonSize, sortedByDistance.length); i++) {
       balloonParticles.add(sortedByDistance[i]);
     }
+
+    // Assign initial targets and lock in formation speeds
+    const balloonArray = Array.from(balloonParticles);
+    for (let i = 0; i < balloonArray.length; i++) {
+      const p = balloonArray[i];
+      p.formationSpeed = 0.8 + Math.random() * 0.4;
+    }
   };
 
   /**
    * Update balloon particle targets based on current rise progress
    */
   const updateBalloonTargets = (elapsed: number) => {
-    if (balloonParticles.size === 0) return;
+    if (balloonParticles.size === 0 || cachedBalloonOffsets.length === 0) return;
 
     // Calculate rise progress (0 to 1)
     const riseProgress = Math.min(1, elapsed / TIMING.balloonRising);
@@ -1060,23 +1069,16 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     const easedProgress = 1 - Math.pow(1 - riseProgress, 3);
 
     // Calculate current balloon center Y (rises from dot toward top)
-    const targetY = balloonStartY * (1 - BALLOON.riseDistance * easedProgress);
-    const currentY = balloonStartY + (targetY - balloonStartY) * easedProgress;
+    const riseAmount = balloonStartY * BALLOON.riseDistance * easedProgress;
+    const currentY = balloonStartY - riseAmount;
 
-    // Generate balloon shape at current position
-    const balloonTargets = generateBalloonTargets(balloonCenterX, currentY, elapsed);
-
-    // Assign balloon targets to balloon particles
+    // Apply cached offsets to current position (no regeneration = no flickering)
     const balloonArray = Array.from(balloonParticles);
     for (let i = 0; i < balloonArray.length; i++) {
-      const target = balloonTargets[i % balloonTargets.length];
+      const offset = cachedBalloonOffsets[i % cachedBalloonOffsets.length];
       const p = balloonArray[i];
-      p.targetX = target.x;
-      p.targetY = target.y;
-      // Vary formation speed for organic movement
-      if (!p.formationSpeed || p.formationSpeed < 0.8) {
-        p.formationSpeed = 0.8 + Math.random() * 0.4;
-      }
+      p.targetX = balloonCenterX + offset.dx;
+      p.targetY = currentY + offset.dy;
     }
   };
 
