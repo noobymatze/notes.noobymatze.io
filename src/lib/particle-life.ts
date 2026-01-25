@@ -989,11 +989,34 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
   /**
    * Draw a single particle as a colored circle
    */
-  const drawParticle = (p: ParticleLife) => {
+  const drawParticle = (p: ParticleLife, now: number) => {
+    let drawX = p.x;
+    let drawY = p.y;
+
+    // Add subtle jitter during first message hold
+    if (currentMode === AnimationMode.HOLDING && isFirstMessage) {
+      const elapsed = getModeElapsedTime(now);
+      if (elapsed > 1.0) {
+        const adjustedElapsed = elapsed - 1.0;
+        const adjustedDuration = TIMING.holdingFirst - 1.0;
+        const progress = Math.min(1, adjustedElapsed / adjustedDuration);
+        const jitterStrength = progress * progress * 2; // Max 2px offset
+
+        // Use target position as seed for consistent jitter per particle
+        const seedX = p.targetX || p.x;
+        const seedY = p.targetY || p.y;
+        const seed = Math.abs(Math.sin(seedX * 12.9898 + seedY * 78.233));
+        const time = adjustedElapsed * (3 + seed * 2);
+
+        drawX += Math.sin(time * 5) * jitterStrength;
+        drawY += Math.cos(time * 7) * jitterStrength;
+      }
+    }
+
     const color = COLORS[p.type];
     ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, PARTICLE_RADIUS, 0, Math.PI * 2);
+    ctx.arc(drawX, drawY, PARTICLE_RADIUS, 0, Math.PI * 2);
     ctx.fill();
   };
 
@@ -1047,7 +1070,7 @@ export function createParticleLifeSystem(canvas: HTMLCanvasElement) {
     }
 
     for (const p of particles) {
-      drawParticle(p);
+      drawParticle(p, now);
     }
 
     animationId = requestAnimationFrame(render);
