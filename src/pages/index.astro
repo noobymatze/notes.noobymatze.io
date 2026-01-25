@@ -15,7 +15,7 @@ posts.sort((a, b) => b.data.date - a.data.date);
   <Header sticky={true} showReplay={true}/>
   <section
     id="hero"
-    class="fixed inset-0 z-50 flex flex-col items-center justify-center hero-bg hidden transition-transform duration-[600ms] ease-in-out"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center hero-bg transition-transform duration-[600ms] ease-in-out"
     data-state="loading"
     aria-label="Hi there, I am Matthias"
   >
@@ -48,7 +48,7 @@ posts.sort((a, b) => b.data.date - a.data.date);
     </button>
   </section>
 
-  <main id="main-content" class="min-h-screen focus:outline-none" tabindex="-1">
+  <main id="main-content" class="min-h-screen focus:outline-none hidden" tabindex="-1">
     <div class="mx-auto pt-36 max-w-3xl prose-xl p-4 border-b pb-12">
       <p class="text-2xl">
         Hi there, my name is Matthias, welcome to my notes. I am
@@ -112,6 +112,7 @@ posts.sort((a, b) => b.data.date - a.data.date);
 
       hero.addEventListener('transitionend', () => {
         hero.classList.add('hidden');
+        mainContent.classList.remove('hidden');
         mainContent.focus();
         cleanup();
       }, { once: true });
@@ -120,6 +121,7 @@ posts.sort((a, b) => b.data.date - a.data.date);
     const startHero = () => {
       setState('loading');
       hero.classList.remove('hidden');
+      mainContent.classList.add('hidden');
 
       // Always start the particle system
       particleSystem?.start();
