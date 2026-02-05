@@ -8,6 +8,7 @@ module.exports = {
 		extend: {
 			fontFamily: {
 				'serif': ['Source Serif Pro', ...defaultTheme.fontFamily.serif],
+				'reading': ['"Literata Variable"', 'Literata', ...defaultTheme.fontFamily.serif],
 			},
 		},
 	},

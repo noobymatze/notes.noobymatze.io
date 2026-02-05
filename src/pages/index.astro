@@ -3,7 +3,6 @@ import Layout from "../layouts/Layout.astro";
 import Header from "../components/Header.astro";
 import {getCollection} from "astro:content";
 import Post from "../components/Post.astro";
-import "@fontsource/pacifico";
 
 const posts = await getCollection('posts', (post) =>
     import.meta.env.PROD ? !post.data.draft : true
@@ -65,17 +64,16 @@ posts.sort((a, b) => b.data.date - a.data.date);
 <script>
   import { createParticleLifeSystem } from '../lib/particle-life';
 
-  const hero = document.getElementById('hero');
-  const enterBtn = document.getElementById('enter-btn');
-  const mainContent = document.getElementById('main-content');
-  const particlesCanvas = document.getElementById('particles-canvas') as HTMLCanvasElement | null;
-  const progressStop = document.getElementById('progress-stop') as SVGStopElement | null;
+  function initializeParticles() {
+    const hero = document.getElementById('hero');
+    const enterBtn = document.getElementById('enter-btn');
+    const mainContent = document.getElementById('main-content');
+    const particlesCanvas = document.getElementById('particles-canvas') as HTMLCanvasElement | null;
+    const progressStop = document.getElementById('progress-stop') as SVGStopElement | null;
 
-  if (hero && enterBtn && mainContent && particlesCanvas && progressStop) {
+    if (hero && enterBtn && mainContent && particlesCanvas && progressStop) {
     const particleSystem = createParticleLifeSystem(particlesCanvas);
-    let canReveal = true;
     let progressRafId: number | null = null;
-    const hasSeenIntro = localStorage.getItem('hasSeenIntro') === 'true';
 
     const setState = (state: 'loading' | 'ready' | 'revealing' | 'hidden') => {
       hero.dataset.state = state;
@@ -87,10 +85,8 @@ posts.sort((a, b) => b.data.date - a.data.date);
       const progress = particleSystem.getProgress(now);
       progressStop.setAttribute('offset', `${progress * 100}%`);
 
-      // When complete, mark as ready and stop progress updates
       if (particleSystem.isReady(now) && hero.dataset.state !== 'ready') {
         setState('ready');
-        // Stop the progress animation loop since we're done
         if (progressRafId !== null) {
           cancelAnimationFrame(progressRafId);
           progressRafId = null;
@@ -101,6 +97,25 @@ posts.sort((a, b) => b.data.date - a.data.date);
       progressRafId = requestAnimationFrame(updateProgress);
     };
 
+    const onWheel = (e: WheelEvent) => { if (e.deltaY > 0 && hero.dataset.state !== 'revealing') reveal(); };
+    const onKey = (e: KeyboardEvent) => { if (['ArrowDown', 'PageDown', ' '].includes(e.key) && hero.dataset.state !== 'revealing') reveal(); };
+    let touchY = 0;
+    const onTouchStart = (e: TouchEvent) => { touchY = e.touches[0].clientY; };
+    const onTouchEnd = (e: TouchEvent) => { if (touchY - e.changedTouches[0].clientY > 50 && hero.dataset.state !== 'revealing') reveal(); };
+    const onResize = () => particleSystem?.resize();
+
+    const cleanup = () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('resize', onResize);
+      if (progressRafId !== null) {
+        cancelAnimationFrame(progressRafId);
+        progressRafId = null;
+      }
+    };
+
     const reveal = () => {
       setState('revealing');
       if (progressRafId !== null) {
@@ -108,7 +123,6 @@ posts.sort((a, b) => b.data.date - a.data.date);
         progressRafId = null;
       }
       particleSystem?.stop();
-      localStorage.setItem('hasSeenIntro', 'true');
 
       hero.addEventListener('transitionend', () => {
         hero.classList.add('hidden');
@@ -123,33 +137,16 @@ posts.sort((a, b) => b.data.date - a.data.date);
       hero.classList.remove('hidden');
       mainContent.classList.add('hidden');
 
-      // Always start the particle system
       particleSystem?.start();
 
-      if (hasSeenIntro) {
-        // Skip animation, go straight to ready state
-        progressStop.setAttribute('offset', '100%');
-        setState('ready');
-      } else {
-        progressStop.setAttribute('offset', '0%');
-        if (progressRafId !== null) {
-          cancelAnimationFrame(progressRafId);
-        }
-        updateProgress();
+      progressStop.setAttribute('offset', '0%');
+      if (progressRafId !== null) {
+        cancelAnimationFrame(progressRafId);
       }
+      updateProgress(performance.now());
     };
 
-    // Initialize on font load
-    document.fonts.ready.then(startHero);
-
-    // Event handlers
-    const onWheel = (e: WheelEvent) => { if (e.deltaY > 0) reveal(); };
-    const onKey = (e: KeyboardEvent) => { if (['ArrowDown', 'PageDown', ' '].includes(e.key)) reveal(); };
-    let touchY = 0;
-    const onTouchStart = (e: TouchEvent) => { touchY = e.touches[0].clientY; };
-    const onTouchEnd = (e: TouchEvent) => { if (touchY - e.changedTouches[0].clientY > 50) reveal(); };
-    const onResize = () => particleSystem?.resize();
-
+    // Register event listeners
     enterBtn.addEventListener('click', reveal);
     window.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('keydown', onKey);
@@ -157,22 +154,19 @@ posts.sort((a, b) => b.data.date - a.data.date);
     window.addEventListener('touchend', onTouchEnd, { passive: true });
     window.addEventListener('resize', onResize);
 
-    const cleanup = () => {
-      window.removeEventListener('wheel', onWheel);
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('resize', onResize);
-      if (progressRafId !== null) {
-        cancelAnimationFrame(progressRafId);
-        progressRafId = null;
-      }
-    };
+    // Start hero with particle animation
+    document.fonts.ready.then(startHero);
 
-    // Handle replay button
-    const replayBtn = document.getElementById('replay-particles-btn');
-    replayBtn?.addEventListener('click', startHero);
+    // Handle ViewTransitions: clean up when navigating away
+    document.addEventListener('astro:before-swap', () => {
+      particleSystem?.stop();
+      cleanup();
+    });
+    }
   }
+
+  // Initialize on first load and on every view transition navigation
+  document.addEventListener('astro:page-load', initializeParticles);
 </script>
 
 <style>
@@ -199,14 +193,15 @@ posts.sort((a, b) => b.data.date - a.data.date);
   }
 
   /* Button states based on hero state */
-  #hero[data-state="loading"] .enter-btn,
-  #hero[data-state="ready"] .enter-btn {
-    color: rgba(255, 255, 255, 0.2);
+  #hero[data-state="loading"] .enter-btn {
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
   }
 
   #hero[data-state="ready"] .enter-btn {
     color: white;
     animation: bounce 1.5s ease-in-out 0.5s infinite;
+    cursor: pointer;
   }
 
   @keyframes bounce {

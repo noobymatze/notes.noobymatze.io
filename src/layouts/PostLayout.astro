@@ -19,31 +19,171 @@ const postDate = new Intl.DateTimeFormat('en-US', {
 
 <Layout title={post.data.title}>
 	<Header sticky={false}/>
-	<article id="post" class="prose prose-xl prose-code:text-md mx-auto max-w-3xl p-4 pt-36 mb-20">
-		<h2 class="article-title">
-			<div>{post.data.title}</div>
-			<div class="mt-2 text-gray-400 text-lg">{postDate}</div>
-		</h2>
-		<p class="border-b pb-6 summary">
-			<em>{post.data.summary}</em>
-		</p>
-		<slot />
+	<article id="post" class="post-article prose prose-lg mx-auto max-w-[65ch] px-6 pt-40 pb-32 font-reading">
+		<header class="post-header not-prose mb-16 text-center">
+			<h1 class="post-title font-reading">{post.data.title}</h1>
+			<time class="post-date">{postDate}</time>
+			<p class="post-summary"><em>{post.data.summary}</em></p>
+			<div class="header-rule"></div>
+		</header>
+
+		<div class="post-body">
+			<slot />
+		</div>
+
+		<style>
+			/* ── Base reading styles ── */
+			.post-article {
+				font-size: 1.25rem;
+				line-height: 1.8;
+				letter-spacing: -0.01em;
+				color: #2d2d2d;
+				text-rendering: optimizeLegibility;
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+				font-variant-ligatures: common-ligatures;
+				font-feature-settings: "kern" 1, "liga" 1, "onum" 1;
+				hanging-punctuation: first;
+				animation: fadeIn 0.8s ease-out;
+			}
+
+			:global(.dark) .post-article {
+				color: #d4d4d4;
+			}
+
+			@keyframes fadeIn {
+				from { opacity: 0; transform: translateY(12px); }
+				to { opacity: 1; transform: translateY(0); }
+			}
+
+			/* ── Article header ── */
+			.post-title {
+				font-size: clamp(2rem, 5vw, 3rem);
+				font-weight: 700;
+				line-height: 1.15;
+				letter-spacing: -0.025em;
+				color: #1a1a1a;
+				margin-bottom: 0.5rem;
+			}
+
+			:global(.dark) .post-title {
+				color: #f0f0f0;
+			}
+
+			.post-date {
+				display: block;
+				font-size: 0.95rem;
+				letter-spacing: 0.05em;
+				text-transform: uppercase;
+				color: #999;
+				margin-bottom: 1.5rem;
+			}
+
+			.post-summary {
+				font-size: 1.2rem;
+				line-height: 1.6;
+				color: #666;
+				max-width: 50ch;
+				margin: 0 auto;
+			}
+
+			:global(.dark) .post-summary {
+				color: #999;
+			}
+
+			.header-rule {
+				width: 3rem;
+				height: 1px;
+				background: #ccc;
+				margin: 2rem auto 0;
+			}
+
+			:global(.dark) .header-rule {
+				background: #555;
+			}
+
+			/* ── Book-style paragraph formatting ── */
+			#post .post-body :global(p) {
+				margin-top: 0;
+				margin-bottom: 0;
+				text-indent: 1.5em;
+			}
+
+			/* Drop cap on first paragraph */
+			#post .post-body :global(p:first-child)::first-letter {
+				float: left;
+				font-size: 3.5em;
+				line-height: 0.8;
+				padding-right: 0.1em;
+				margin-top: 0.05em;
+				font-weight: 700;
+				color: #1a1a1a;
+			}
+
+			:global(.dark) #post .post-body :global(p:first-child)::first-letter {
+				color: #f0f0f0;
+			}
+
+			#post .post-body :global(p:first-child) {
+				text-indent: 0;
+			}
+
+			/* First paragraph after headings — no indent */
+			#post .post-body :global(h1 + p),
+			#post .post-body :global(h2 + p),
+			#post .post-body :global(h3 + p),
+			#post .post-body :global(h4 + p),
+			#post .post-body :global(h5 + p),
+			#post .post-body :global(h6 + p) {
+				text-indent: 0;
+			}
+
+			/* Paragraphs within lists — no indent */
+			#post .post-body :global(li p) {
+				text-indent: 0;
+			}
+
+			/* ── Heading rhythm ── */
+			#post .post-body :global(h2),
+			#post .post-body :global(h3),
+			#post .post-body :global(h4) {
+				margin-top: 2.5em;
+				letter-spacing: -0.02em;
+			}
+
+			/* ── Blockquote refinement ── */
+			#post .post-body :global(blockquote) {
+				font-style: italic;
+				border-left: 2px solid #ccc;
+				padding-left: 1.5em;
+				color: #555;
+			}
+
+			:global(.dark) #post .post-body :global(blockquote) {
+				border-left-color: #555;
+				color: #aaa;
+			}
+
+			#post .post-body :global(blockquote p) {
+				text-indent: 0;
+			}
+		</style>
 
 		{(previousPost || nextPost) && (
-			<nav class="flex justify-between items-center mt-12 pt-8 border-t not-prose">
+			<nav class="flex justify-between items-center mt-16 pt-8 border-t not-prose">
 				<div class="flex-1">
 					{previousPost && (
 						<a href={`/posts/${previousPost.slug}`} class="group flex flex-col items-start">
-							<span class="text-sm text-gray-500">← Previous</span>
-							<span class="text-gray-400 group-hover:text-gray-600 transition-colors">{previousPost.data.title}</span>
+							<span class="text-sm text-gray-500 tracking-wide uppercase">← Previous</span>
+							<span class="text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">{previousPost.data.title}</span>
 						</a>
 					)}
 				</div>
 				<div class="flex-1 text-right">
 					{nextPost && (
 						<a href={`/posts/${nextPost.slug}`} class="group flex flex-col items-end">
-							<span class="text-sm text-gray-500">Next →</span>
-							<span class="text-gray-400 group-hover:text-gray-600 transition-colors">{nextPost.data.title}</span>
+							<span class="text-sm text-gray-500 tracking-wide uppercase">Next →</span>
+							<span class="text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">{nextPost.data.title}</span>
 						</a>
 					)}
 				</div>

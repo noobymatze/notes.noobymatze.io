@@ -152,7 +152,7 @@ const BALLOON = {
 // Animation timing (in seconds)
 const TIMING = {
   explosion: 2,                 // Initial burst from center (unused - starts in HOLDING)
-  particleLife: 10,             // Chaotic particle life between messages
+  particleLife: 3,              // Chaotic particle life between messages
   particleLifeInfinite: 20,     // Particle life cycle after all messages
   forming: 3,                   // Particles transitioning to form text
   holding: 8,                   // Particles holding text shape
