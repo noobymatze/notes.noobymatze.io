@@ -1,5 +1,5 @@
 ---
-title: "Patterns and Feedback Loops"
+title: "Plan Mode, Patterns, Feedback Loops and DSLs"
 summary: "Essentials of programming with coding agents."
 date: 2026-02-06
 author: Matthias Metzger
@@ -55,6 +55,25 @@ Here are some ideas:
   it.
 - Write an agent who's sole purpose is to play devils advocate and check
   against a list of patterns, you tell it to.
+
+## DSLs
+
+Sometimes it's also a really good idea to implement a small, composable DSL to
+constrain the output of an LLM. For example, if you have a DSL to build user
+defined forms, you can tell the LLM that and for example ask it to build a
+welcome form and it will do it. Same for drawing stuff for example.
+
+```ts
+type Widget
+  = { type: 'Paragraph', content: Text[] }
+  | { type: 'Input', name: string, placeholder: string }
+  | { type: 'Row', name: string, placeholder: string };
+
+type Text = {
+  content: string;
+  options: FormattingOptions;
+}
+```
 
 What a time to be alive.
 
