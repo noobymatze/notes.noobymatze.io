@@ -173,7 +173,7 @@ const postDate = new Intl.DateTimeFormat('en-US', {
 			<nav class="flex justify-between items-center mt-16 pt-8 border-t not-prose">
 				<div class="flex-1">
 					{previousPost && (
-						<a href={`/posts/${previousPost.slug}`} class="group flex flex-col items-start">
+						<a href={`/posts/${previousPost.id}`} class="group flex flex-col items-start">
 							<span class="text-sm text-gray-500 tracking-wide uppercase">← Previous</span>
 							<span class="text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">{previousPost.data.title}</span>
 						</a>
@@ -181,7 +181,7 @@ const postDate = new Intl.DateTimeFormat('en-US', {
 				</div>
 				<div class="flex-1 text-right">
 					{nextPost && (
-						<a href={`/posts/${nextPost.slug}`} class="group flex flex-col items-end">
+						<a href={`/posts/${nextPost.id}`} class="group flex flex-col items-end">
 							<span class="text-sm text-gray-500 tracking-wide uppercase">Next →</span>
 							<span class="text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">{nextPost.data.title}</span>
 						</a>

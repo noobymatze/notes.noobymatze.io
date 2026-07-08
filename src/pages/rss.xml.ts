@@ -20,10 +20,10 @@ export async function GET(context: any) {
             title: post.data.title,
             pubDate: post.data.date,
             description: post.data.summary,
-            content: sanitizeHtml(parser.render(post.body)),
-            // Compute RSS link from post `slug`
-            // This example assumes all posts are rendered as `/blog/[slug]` routes
-            link: `/posts/${post.slug}/`,
+            content: sanitizeHtml(parser.render(post.body ?? '')),
+            // Compute RSS link from post `id`
+            // This example assumes all posts are rendered as `/posts/[id]` routes
+            link: `/posts/${post.id}/`,
         })),
         // (optional) inject custom xml
         customData: `<language>en-us</language>`,
